@@ -1,0 +1,59 @@
+service: workspace-management
+
+plugins:
+  - serverless-python-requirements
+  - serverless-appsync-plugin
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+
+custom:
+  pythonRequirements:
+    layer:
+      name: python-deps
+      description: Python dependencies
+    noDeploy:
+      - pytest
+      - moto
+
+functions:
+  dataToS3:
+    handler: src/functions/data_handlers/data_to_s3.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt DataTable.StreamArn
+    environment:
+      DATA_BUCKET: !Ref DataBucket
+      WORKSPACE_TABLE: !Ref WorkspaceTable
+      PATH_TABLE: !Ref PathTable
+      COMPONENT_TABLE: !Ref ComponentTable
+
+  cascadeDelete:
+    handler: src/functions/cascade_handlers/cascade_delete.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt WorkspaceTable.StreamArn
+      - stream:
+          type: dynamodb
+          arn: !GetAtt PathTable.StreamArn
+      - stream:
+          type: dynamodb
+          arn: !GetAtt ComponentTable.StreamArn
+
+resources:
+  - ${file(infrastructure/dynamo-tables.yml)}
+  - ${file(infrastructure/s3-resources.yml)}
+
+package:
+  patterns:
+    - '!**/*.test.js'
+    - '!**/*.pyc'
+    - '!.pytest_cache/**'
+    - '!__pycache__/**'
+    - '!node_modules/**'
+    - '!tests/**'

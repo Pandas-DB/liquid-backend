@@ -1,0 +1,142 @@
+type User {
+  id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  email: String!
+  token: String
+  metadata: AWSJSON
+  accounts: [Account]
+}
+
+type Account {
+  id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  user_id: ID!
+  workspace_id: ID!
+  user_is_workspace_admin: Boolean!
+  user: User
+  workspace: Workspace
+}
+
+type Workspace {
+  id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  name: String!
+  metadata: AWSJSON
+  paths: [Path]
+  accounts: [Account]
+}
+
+type Path {
+  id: ID!
+  workspace_id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  name: String!
+  normalized_name: String!
+  metadata: AWSJSON
+  workspace: Workspace
+  components: [Component]
+}
+
+type Component {
+  id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  name: String!
+  workspace_id: ID!
+  path_id: ID!
+  has_data: Boolean!
+  has_action: Boolean!
+  metadata: AWSJSON
+  path: Path
+  data: [Data]
+}
+
+type Data {
+  id: ID!
+  created_at: AWSDateTime!
+  updated_at: AWSDateTime!
+  component_id: ID!
+  data: AWSJSON!
+  data_map: AWSJSON!
+  s3_location: String
+  component: Component
+}
+
+type Query {
+  # User queries
+  getUser(id: ID!): User @aws_auth(cognito_groups: ["Admin"])
+  listUserWorkspaces: [Workspace]
+
+  # Workspace queries
+  getWorkspace(id: ID!): Workspace
+  listWorkspaces(limit: Int, nextToken: String): WorkspaceConnection!
+
+  # Path queries
+  getPath(id: ID!): Path
+  listPaths(workspaceId: ID!, limit: Int, nextToken: String): PathConnection!
+
+  # Component queries
+  getComponent(id: ID!): Component
+  listComponents(pathId: ID!, limit: Int, nextToken: String): ComponentConnection!
+
+  # Data queries
+  getData(id: ID!): Data
+  listData(componentId: ID!, limit: Int, nextToken: String): DataConnection!
+}
+
+type Mutation {
+  # Admin mutations
+  createUser(email: String!, token: String, metadata: AWSJSON): User @aws_auth(cognito_groups: ["Admin"])
+  deleteUser(id: ID!): Boolean @aws_auth(cognito_groups: ["Admin"])
+  
+  # Account mutations
+  createAccount(userId: ID!, workspaceId: ID!, userIsWorkspaceAdmin: Boolean!): Account
+  deleteAccount(id: ID!): Boolean
+  
+  # Workspace mutations
+  createWorkspace(name: String!, metadata: AWSJSON): Workspace
+  deleteWorkspace(id: ID!): Boolean
+  
+  # Path mutations
+  createPath(workspaceId: ID!, name: String!, metadata: AWSJSON): Path
+  deletePath(id: ID!): Boolean
+  
+  # Component mutations
+  createComponent(pathId: ID!, name: String!, hasData: Boolean!, hasAction: Boolean!, metadata: AWSJSON): Component
+  deleteComponent(id: ID!): Boolean
+  
+  # Data mutations
+  createData(componentId: ID!, data: AWSJSON!, dataMap: AWSJSON!, addToDataLake: Boolean = true): Data
+  deleteData(id: ID!, deleteInDataLake: Boolean = true): Boolean
+}
+
+type Subscription {
+  onCreateComponent(pathId: ID!): Component @aws_subscribe(mutations: ["createComponent"])
+  onDeleteComponent(pathId: ID!): Component @aws_subscribe(mutations: ["deleteComponent"])
+  onCreateData(componentId: ID!): Data @aws_subscribe(mutations: ["createData"])
+  onDeleteData(componentId: ID!): Data @aws_subscribe(mutations: ["deleteData"])
+}
+
+type WorkspaceConnection {
+  items: [Workspace]!
+  nextToken: String
+}
+
+type PathConnection {
+  items: [Path]!
+  nextToken: String
+}
+
+type ComponentConnection {
+  items: [Component]!
+  nextToken: String
+}
+
+type DataConnection {
+  items: [Data]!
+  nextToken: String
+}

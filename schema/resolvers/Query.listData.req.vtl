@@ -1,0 +1,13 @@
+{
+    "version": "2018-05-29",
+    "operation": "Query",
+    "index": "ComponentDataIndex",
+    "query": {
+        "expression": "component_id = :componentId",
+        "expressionValues": {
+            ":componentId": $util.dynamodb.toDynamoDBJson($ctx.args.componentId)
+        }
+    },
+    "limit": $util.defaultIfNull($ctx.args.limit, 20),
+    "nextToken": $util.toJson($util.defaultIfNull($ctx.args.nextToken, null))
+}

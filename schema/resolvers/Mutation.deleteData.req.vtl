@@ -1,0 +1,21 @@
+{
+    "version": "2018-05-29",
+    "operation": "UpdateItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+    },
+    "update": {
+        "expression": "SET deleteInDataLake = :deleteInDataLake",
+        "expressionValues": {
+            ":deleteInDataLake": $util.dynamodb.toDynamoDBJson($util.defaultIfNull($ctx.args.deleteInDataLake, true))
+        }
+    }
+}
+#set($result = true)
+{
+    "version": "2018-05-29",
+    "operation": "DeleteItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+    }
+}

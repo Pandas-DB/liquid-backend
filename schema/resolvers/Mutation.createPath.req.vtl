@@ -1,0 +1,20 @@
+#set($normalized_name = $util.str.toLower($ctx.args.name))
+#set($normalized_name = $util.str.replaceAll($normalized_name, "[^a-z0-9]", "-"))
+#set($normalized_name = $util.str.replaceAll($normalized_name, "-+", "-"))
+#set($normalized_name = $util.str.trim($normalized_name, "-"))
+
+{
+    "version": "2018-05-29",
+    "operation": "PutItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+    },
+    "attributeValues": {
+        "workspace_id": $util.dynamodb.toDynamoDBJson($ctx.args.workspaceId),
+        "name": $util.dynamodb.toDynamoDBJson($ctx.args.name),
+        "normalized_name": $util.dynamodb.toDynamoDBJson($normalized_name),
+        "created_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+        "updated_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+        "metadata": $util.dynamodb.toDynamoDBJson($util.defaultIfNull($ctx.args.metadata, "{}"))
+    }
+}

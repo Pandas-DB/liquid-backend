@@ -1,0 +1,177 @@
+Resources:
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-user-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  AccountTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-account-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: workspace_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserWorkspaceIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: workspace_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: WorkspaceUserIndex
+          KeySchema:
+            - AttributeName: workspace_id
+              KeyType: HASH
+            - AttributeName: user_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  WorkspaceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-workspace-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  PathTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-path-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: workspace_id
+          AttributeType: S
+        - AttributeName: normalized_name
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: WorkspacePathIndex
+          KeySchema:
+            - AttributeName: workspace_id
+              KeyType: HASH
+            - AttributeName: normalized_name
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  ComponentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-component-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: path_id
+          AttributeType: S
+        - AttributeName: workspace_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PathComponentIndex
+          KeySchema:
+            - AttributeName: path_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: WorkspaceComponentIndex
+          KeySchema:
+            - AttributeName: workspace_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-data-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: component_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ComponentDataIndex
+          KeySchema:
+            - AttributeName: component_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+Outputs:
+  UserTableName:
+    Value: !Ref UserTable
+  UserTableArn:
+    Value: !GetAtt UserTable.Arn
+  AccountTableName:
+    Value: !Ref AccountTable
+  AccountTableArn:
+    Value: !GetAtt AccountTable.Arn
+  WorkspaceTableName:
+    Value: !Ref WorkspaceTable
+  WorkspaceTableArn:
+    Value: !GetAtt WorkspaceTable.Arn
+  PathTableName:
+    Value: !Ref PathTable
+  PathTableArn:
+    Value: !GetAtt PathTable.Arn
+  ComponentTableName:
+    Value: !Ref ComponentTable
+  ComponentTableArn:
+    Value: !GetAtt ComponentTable.Arn
+  DataTableName:
+    Value: !Ref DataTable
+  DataTableArn:
+    Value: !GetAtt DataTable.Arn

@@ -1,0 +1,14 @@
+#set($userId = $ctx.identity.sub)
+{
+    "version": "2018-05-29",
+    "operation": "Query",
+    "index": "UserWorkspaceIndex",
+    "query": {
+        "expression": "user_id = :userId",
+        "expressionValues": {
+            ":userId": $util.dynamodb.toDynamoDBJson($userId)
+        }
+    },
+    "limit": $util.defaultIfNull($ctx.args.limit, 20),
+    "nextToken": $util.toJson($util.defaultIfNull($ctx.args.nextToken, null))
+}

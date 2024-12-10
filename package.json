@@ -1,0 +1,17 @@
+{
+  "name": "workspace-management",
+  "version": "1.0.0",
+  "description": "Workspace Management System with AppSync and DynamoDB",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "deploy:dev": "serverless deploy --stage dev",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove",
+    "test": "pytest"
+  },
+  "devDependencies": {
+    "serverless": "^3.0.0",
+    "serverless-appsync-plugin": "^1.14.0",
+    "serverless-python-requirements": "^6.0.0"
+  }
+}

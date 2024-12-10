@@ -1,0 +1,15 @@
+{
+    "version": "2018-05-29",
+    "operation": "PutItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+    },
+    "attributeValues": {
+        "component_id": $util.dynamodb.toDynamoDBJson($ctx.args.componentId),
+        "data": $util.dynamodb.toDynamoDBJson($ctx.args.data),
+        "data_map": $util.dynamodb.toDynamoDBJson($ctx.args.dataMap),
+        "created_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+        "updated_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+        "addToDataLake": $util.dynamodb.toDynamoDBJson($util.defaultIfNull($ctx.args.addToDataLake, true))
+    }
+}
