@@ -1,0 +1,26 @@
+input DataEvent {
+  data: AWSJSON!
+  dataMap: AWSJSON
+}
+
+input BulkDataInput {
+  workspace_name: String!
+  path_name: String!
+  component_name: String!
+  data: [DataEvent!]!
+  addToDataLake: Boolean = true
+}
+
+type BulkDataResponse {
+  workspace_id: ID!
+  path_id: ID!
+  component_id: ID!
+  created_data_ids: [ID!]!
+  workspace_created: Boolean!
+  path_created: Boolean!
+  component_created: Boolean!
+}
+
+extend type Mutation {
+  bulkCreateData(input: BulkDataInput!): BulkDataResponse!
+}

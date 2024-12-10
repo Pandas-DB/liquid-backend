@@ -1,0 +1,18 @@
+{
+    "version": "2018-05-29",
+    "operation": "Invoke",
+    "payload": {
+        "arguments": {
+            "input": $util.toJson($context.arguments.input)
+        },
+        "identity": {
+            ## Pass user identity information to Lambda
+            "sub": "$context.identity.sub",
+            "issuer": "$context.identity.issuer",
+            "username": "$context.identity.username",
+            "claims": $util.toJson($context.identity.claims),
+            "sourceIp": "$context.identity.sourceIp",
+            "defaultAuthStrategy": "$context.identity.defaultAuthStrategy"
+        }
+    }
+}
