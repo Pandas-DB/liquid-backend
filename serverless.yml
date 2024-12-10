@@ -7,17 +7,135 @@ plugins:
 provider:
   name: aws
   runtime: python3.9
+  profile: ikonicshop
+  region: ${opt:region, 'eu-west-1'}
   stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'us-east-1'}
+  environment:
+    STAGE: ${self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - !GetAtt UserTable.Arn
+            - !GetAtt AccountTable.Arn
+            - !GetAtt WorkspaceTable.Arn
+            - !GetAtt PathTable.Arn
+            - !GetAtt ComponentTable.Arn
+            - !GetAtt DataTable.Arn
+            - !Sub "${UserTable.Arn}/index/*"
+            - !Sub "${AccountTable.Arn}/index/*"
+            - !Sub "${WorkspaceTable.Arn}/index/*"
+            - !Sub "${PathTable.Arn}/index/*"
+            - !Sub "${ComponentTable.Arn}/index/*"
+            - !Sub "${DataTable.Arn}/index/*"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: !Sub "${DataBucket.Arn}/*"
 
 custom:
+  tablePrefix: ${self:service}-${self:provider.stage}
+  tableName:
+    user: ${self:custom.tablePrefix}-user
+    account: ${self:custom.tablePrefix}-account
+    workspace: ${self:custom.tablePrefix}-workspace
+    path: ${self:custom.tablePrefix}-path
+    component: ${self:custom.tablePrefix}-component
+    data: ${self:custom.tablePrefix}-data
+
+  # Python requirements plugin configuration
   pythonRequirements:
     layer:
       name: python-deps
       description: Python dependencies
     noDeploy:
       - pytest
-      - moto
+      - pytest-cov
+      - black
+      - flake8
+    dockerizePip: true
+
+  # AppSync configuration
+  appSync:
+    name: ${self:service}-${self:provider.stage}
+    authenticationType: API_KEY
+    apiKeys:
+      - name: default
+        description: Default API Key
+        expiresAfter: 30d
+    schema: schema/schema.graphql
+    mappingTemplatesLocation: schema/resolvers
+    mappingTemplates:
+      - type: Query
+        field: listWorkspaces
+        dataSource: workspaceTable
+        request: Query.listWorkspaces.req.vtl
+        response: Query.listWorkspaces.res.vtl
+
+      - type: Mutation
+        field: bulkCreateData
+        dataSource: bulkDataSource
+        request: Mutation.bulkCreateData.req.vtl
+        response: Mutation.bulkCreateData.res.vtl
+
+      - type: Mutation
+        field: createData
+        dataSource: dataTable
+        request: Mutation.createData.req.vtl
+        response: Mutation.createData.res.vtl
+
+      - type: Mutation
+        field: deleteData
+        dataSource: dataTable
+        request: Mutation.deleteData.req.vtl
+        response: Mutation.deleteData.res.vtl
+
+      - type: Query
+        field: listData
+        dataSource: dataTable
+        request: Query.listData.req.vtl
+        response: Query.listData.res.vtl
+
+    dataSources:
+      - type: AMAZON_DYNAMODB
+        name: workspaceTable
+        config:
+          tableName: ${self:custom.tableName.workspace}
+          serviceRoleArn: !GetAtt AppSyncDynamoDBServiceRole.Arn
+
+      - type: AMAZON_DYNAMODB
+        name: pathTable
+        config:
+          tableName: ${self:custom.tableName.path}
+          serviceRoleArn: !GetAtt AppSyncDynamoDBServiceRole.Arn
+
+      - type: AMAZON_DYNAMODB
+        name: componentTable
+        config:
+          tableName: ${self:custom.tableName.component}
+          serviceRoleArn: !GetAtt AppSyncDynamoDBServiceRole.Arn
+
+      - type: AMAZON_DYNAMODB
+        name: dataTable
+        config:
+          tableName: ${self:custom.tableName.data}
+          serviceRoleArn: !GetAtt AppSyncDynamoDBServiceRole.Arn
+
+      - type: AWS_LAMBDA
+        name: bulkDataSource
+        config:
+          functionName: !Ref BulkDataHandlerLambdaFunction
+          serviceRoleArn: !GetAtt AppSyncLambdaServiceRole.Arn
 
 functions:
   dataToS3:
@@ -28,9 +146,10 @@ functions:
           arn: !GetAtt DataTable.StreamArn
     environment:
       DATA_BUCKET: !Ref DataBucket
-      WORKSPACE_TABLE: !Ref WorkspaceTable
-      PATH_TABLE: !Ref PathTable
-      COMPONENT_TABLE: !Ref ComponentTable
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
+      PATH_TABLE: ${self:custom.tableName.path}
+      COMPONENT_TABLE: ${self:custom.tableName.component}
+      DATA_TABLE: ${self:custom.tableName.data}
 
   cascadeDelete:
     handler: src/functions/cascade_handlers/cascade_delete.handler
@@ -38,16 +157,20 @@ functions:
       - stream:
           type: dynamodb
           arn: !GetAtt WorkspaceTable.StreamArn
-      - stream:
-          type: dynamodb
-          arn: !GetAtt PathTable.StreamArn
-      - stream:
-          type: dynamodb
-          arn: !GetAtt ComponentTable.StreamArn
+    environment:
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
+      PATH_TABLE: ${self:custom.tableName.path}
+      COMPONENT_TABLE: ${self:custom.tableName.component}
+      DATA_TABLE: ${self:custom.tableName.data}
 
-resources:
-  - ${file(infrastructure/dynamo-tables.yml)}
-  - ${file(infrastructure/s3-resources.yml)}
+  bulkDataHandler:
+    handler: src/functions/data_handlers/bulk_data_handler.handler
+    environment:
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
+      PATH_TABLE: ${self:custom.tableName.path}
+      COMPONENT_TABLE: ${self:custom.tableName.component}
+      DATA_TABLE: ${self:custom.tableName.data}
+      ACCOUNT_TABLE: ${self:custom.tableName.account}
 
 package:
   patterns:
@@ -57,3 +180,66 @@ package:
     - '!__pycache__/**'
     - '!node_modules/**'
     - '!tests/**'
+    - '!.coverage'
+    - '!.pytest_cache'
+    - '!.git/**'
+
+resources:
+  Resources:
+    # AppSync IAM Roles
+    AppSyncDynamoDBServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: appsync.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: DynamoDBAccess
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - dynamodb:GetItem
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                    - dynamodb:DeleteItem
+                    - dynamodb:Query
+                    - dynamodb:Scan
+                  Resource:
+                    - !GetAtt UserTable.Arn
+                    - !GetAtt AccountTable.Arn
+                    - !GetAtt WorkspaceTable.Arn
+                    - !GetAtt PathTable.Arn
+                    - !GetAtt ComponentTable.Arn
+                    - !GetAtt DataTable.Arn
+                    - !Sub "${UserTable.Arn}/index/*"
+                    - !Sub "${AccountTable.Arn}/index/*"
+                    - !Sub "${WorkspaceTable.Arn}/index/*"
+                    - !Sub "${PathTable.Arn}/index/*"
+                    - !Sub "${ComponentTable.Arn}/index/*"
+                    - !Sub "${DataTable.Arn}/index/*"
+
+    AppSyncLambdaServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: appsync.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: LambdaInvoke
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource: !GetAtt BulkDataHandlerLambdaFunction.Arn
