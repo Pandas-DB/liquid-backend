@@ -1,4 +1,4 @@
-service: workspace-management
+service: liquid-backend
 
 plugins:
   - serverless-appsync-plugin
