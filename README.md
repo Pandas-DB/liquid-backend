@@ -1,36 +1,38 @@
 workspace-management/
-├── README.md
 ├── package.json
+├── package-lock.json
+├── README.md
+├── requirements-test.txt
 ├── requirements.txt
+├── schema
+│   ├── resolvers
+│   │   ├── Mutation.bulkCreateData.req.vtl
+│   │   ├── Mutation.bulkCreateData.res.vtl
+│   │   ├── Mutation.createData.req.vtl
+│   │   ├── Mutation.createData.res.vtl
+│   │   ├── Mutation.createPath.req.vtl
+│   │   ├── Mutation.deleteData.req.vtl
+│   │   ├── Mutation.deleteData.res.vtl
+│   │   ├── Query.listData.req.vtl
+│   │   ├── Query.listData.res.vtl
+│   │   ├── Query.listWorkspaces.req.vtl
+│   │   └── Query.listWorkspaces.res.vtl
+│   ├── schema_additions.graphql
+│   └── schema.graphql
 ├── serverless.yml
-├── schema/
-│   ├── schema.graphql
-│   └── resolvers/
-│       ├── Mutation.createData.req.vtl
-│       ├── Mutation.createData.res.vtl
-│       ├── Mutation.deleteData.req.vtl
-│       ├── Mutation.deleteData.res.vtl
-│       ├── Query.listData.req.vtl
-│       └── Query.listData.res.vtl
-├── src/
-│   ├── functions/
-│   │   ├── data_handlers/
-│   │   │   ├── __init__.py
-│   │   │   ├── data_to_s3.py
-│   │   │   └── utils.py
-│   │   └── cascade_handlers/
-│   │       ├── __init__.py
-│   │       ├── cascade_delete.py
-│   │       └── utils.py
-│   └── lib/
-│       ├── __init__.py
-│       └── common_utils.py
-├── infrastructure/
-│   ├── dynamo-tables.yml
-│   └── s3-resources.yml
-└── tests/
-    ├── functions/
-    │   ├── test_data_to_s3.py
-    │   └── test_cascade_delete.py
-    └── resolvers/
-        └── test_data_mutations.py
+├── src
+│   ├── functions
+│   │   ├── cascade_handlers
+│   │   │   ├── cascade_delete.py
+│   │   │   └── utils.py
+│   │   └── data_handlers
+│   │       ├── bulk_data_handler.py
+│   │       ├── data_to_s3.py
+│   │       └── utils.py
+│   └── lib
+│       └── common_utils.py
+└── tests
+    ├── functions
+    │   ├── bulk_data_request.py
+    │   └── client_test.py
+    └── resolvers
