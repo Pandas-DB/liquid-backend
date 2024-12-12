@@ -15,16 +15,28 @@ def get_admin_user(email: str) -> str:
     """Get existing user or fail."""
     user_table = dynamodb.Table(os.environ['USER_TABLE'])
 
-    # Check for existing user
-    users = user_table.scan(
-        FilterExpression='email = :email',
-        ExpressionAttributeNames={'email': email}
-    )
+    logger.info(f"Looking for user with email: {email}")
+    try:
+        # Check for existing user
+        users = user_table.scan(
+            FilterExpression='#email = :email',
+            ExpressionAttributeNames={'#email': 'email'},
+            ExpressionAttributeValues={':email': email}
+        )
 
-    if not users['Items']:
-        raise Exception(f"Admin user with email {email} not found. Please create the user first.")
+        # logger.info(f"Scan result: {json.dumps(users)}")
 
-    return users['Items'][0]['id']
+        if not users['Items']:
+            logger.error(f"No user found with email {email}")
+            raise Exception(f"Admin user with email {email} not found. Please create the user first.")
+
+        user_id = users['Items'][0]['id']
+        logger.info(f"Found user with ID: {user_id}")
+        return user_id
+
+    except Exception as e:
+        logger.error(f"Error in get_admin_user: {str(e)}")
+        raise
 
 def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, bool]:
     """
@@ -68,43 +80,85 @@ def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, boo
 def get_or_create_path(workspace_id: str, path_name: str) -> Tuple[str, bool]:
     """Get existing path or create new one."""
     path_table = dynamodb.Table(os.environ['PATH_TABLE'])
-    
-    # Check for existing path
-    paths = path_table.query(
-        IndexName='WorkspacePathIndex',
-        KeyConditionExpression=Key('workspace_id').eq(workspace_id),
-        FilterExpression='#name = :name',
-        ExpressionAttributeNames={'#name': 'name'},
-        ExpressionAttributeValues={':name': path_name}
-    )
-    
-    if paths['Items']:
-        return paths['Items'][0]['id'], False
-        
-    # Create new path
+
     normalized_name = path_name.lower().replace(' ', '-')
-    path_id = create_path(workspace_id, path_name, normalized_name)
-    return path_id, True
+
+    # Check for existing path using the GSI directly
+    # No need for FilterExpression since both workspace_id and normalized_name are part of the index
+    try:
+        response = path_table.query(
+            IndexName='WorkspacePathIndex',
+            KeyConditionExpression='workspace_id = :ws_id AND normalized_name = :norm_name',
+            ExpressionAttributeValues={
+                ':ws_id': workspace_id,
+                ':norm_name': normalized_name
+            }
+        )
+
+        if response['Items']:
+            return response['Items'][0]['id'], False
+
+        # Create new path if not found
+        path_id = generate_id('path')
+
+        path_table.put_item(Item={
+            'id': path_id,
+            'workspace_id': workspace_id,
+            'name': path_name,
+            'normalized_name': normalized_name,
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat(),
+            'metadata': '{}'
+        })
+
+        return path_id, True
+
+    except Exception as e:
+        logger.error(f"Error in get_or_create_path: {str(e)}")
+        raise
+
 
 def get_or_create_component(workspace_id: str, path_id: str, component_name: str) -> Tuple[str, bool]:
     """Get existing component or create new one."""
     component_table = dynamodb.Table(os.environ['COMPONENT_TABLE'])
-    
-    # Check for existing component
-    components = component_table.query(
-        IndexName='PathComponentIndex',
-        KeyConditionExpression=Key('path_id').eq(path_id),
-        FilterExpression='#name = :name',
-        ExpressionAttributeNames={'#name': 'name'},
-        ExpressionAttributeValues={':name': component_name}
-    )
-    
-    if components['Items']:
-        return components['Items'][0]['id'], False
-        
-    # Create new component
-    component_id = create_component(workspace_id, path_id, component_name)
-    return component_id, True
+
+    # Use the GSI directly with KeyConditionExpression
+    try:
+        response = component_table.query(
+            IndexName='PathComponentIndex',
+            KeyConditionExpression='path_id = :path_id AND #name = :name',
+            ExpressionAttributeNames={
+                '#name': 'name'
+            },
+            ExpressionAttributeValues={
+                ':path_id': path_id,
+                ':name': component_name
+            }
+        )
+
+        if response['Items']:
+            return response['Items'][0]['id'], False
+
+        # Create new component
+        component_id = generate_id('comp')
+
+        component_table.put_item(Item={
+            'id': component_id,
+            'workspace_id': workspace_id,
+            'path_id': path_id,
+            'name': component_name,
+            'has_data': True,
+            'has_action': False,
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat(),
+            'metadata': '{}'
+        })
+
+        return component_id, True
+
+    except Exception as e:
+        logger.error(f"Error in get_or_create_component: {str(e)}")
+        raise
 
 def create_workspace(name: str) -> str:
     """Create a new workspace."""
@@ -195,30 +249,44 @@ def create_data_entries(component_id: str, data_events: List[Dict], add_to_data_
     
     return created_ids
 
-
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle bulk data creation with workspace/path/component hierarchy."""
     try:
-        input_data = event['arguments']['input']
+        logger.info(f"Received event: {json.dumps(event)}")
+
+        input_data = event.get('arguments', {}).get('input', {})
+        if not input_data:
+            logger.error("No input data found in event")
+            raise Exception("No input data provided")
+
+        # Validate required fields
+        required_fields = ['admin_email', 'workspace_name', 'path_name', 'component_name', 'data']
+        missing_fields = [field for field in required_fields if field not in input_data]
+        if missing_fields:
+            raise Exception(f"Missing required fields: {', '.join(missing_fields)}")
 
         user_id = get_admin_user(input_data['admin_email'])
+        logger.info(f"Found user: {user_id}")
 
         # Get or create workspace and related entities
         workspace_id, workspace_created = get_or_create_workspace(
-            user_id,  # Now we pass the verified admin user id
+            user_id,
             input_data['workspace_name']
         )
+        logger.info(f"Workspace processed: {workspace_id}, created: {workspace_created}")
 
         path_id, path_created = get_or_create_path(
             workspace_id,
             input_data['path_name']
         )
+        logger.info(f"Path processed: {path_id}, created: {path_created}")
 
         component_id, component_created = get_or_create_component(
             workspace_id,
             path_id,
             input_data['component_name']
         )
+        logger.info(f"Component processed: {component_id}, created: {component_created}")
 
         # Create all data entries
         created_data_ids = create_data_entries(
@@ -226,8 +294,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             input_data['data'],
             input_data.get('addToDataLake', True)
         )
+        logger.info(f"Created data entries: {created_data_ids}")
 
-        return {
+        result = {
             'workspace_id': workspace_id,
             'path_id': path_id,
             'component_id': component_id,
@@ -237,6 +306,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'component_created': component_created
         }
 
+        logger.info(f"Returning result: {json.dumps(result)}")
+        return result
+
     except Exception as e:
         logger.error(f"Error in bulk data creation: {str(e)}", exc_info=True)
+        # Important: Re-raise the error to ensure AppSync gets an error response
         raise

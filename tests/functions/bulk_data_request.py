@@ -124,8 +124,12 @@ if __name__ == "__main__":
             "dataMap": json.dumps({"type": "string"})
         }
     ]
-    
+
     try:
+        if not API_ENDPOINT or not API_KEY:
+            raise ValueError("API_ENDPOINT and API_KEY environment variables must be set")
+
+        print(f"Making request to: {API_ENDPOINT}")
         result = bulk_create_data(
             api_endpoint=API_ENDPOINT,
             api_key=API_KEY,
@@ -139,6 +143,11 @@ if __name__ == "__main__":
 
         print("Bulk data creation successful!")
         print(json.dumps(result, indent=2))
-        
+
+    except ValueError as e:
+        print(f"Configuration error: {str(e)}")
     except Exception as e:
         print(f"Failed to create bulk data: {str(e)}")
+        if hasattr(e, 'response'):
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response body: {e.response.text}")

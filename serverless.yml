@@ -189,6 +189,20 @@ functions:
     layers:
       - { Ref: DependenciesLambdaLayer }  # Reference the layer
     environment:
+      USER_TABLE: ${self:custom.tableName.user}
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
+      PATH_TABLE: ${self:custom.tableName.path}
+      COMPONENT_TABLE: ${self:custom.tableName.component}
+      DATA_TABLE: ${self:custom.tableName.data}
+      ACCOUNT_TABLE: ${self:custom.tableName.account}
+
+  bulkDataGet:
+    name: ${self:service}-${self:provider.stage}-bulkDataGet
+    handler: src/functions/data_handlers/bulk_get_data_handler.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }  # Reference the layer
+    environment:
+      USER_TABLE: ${self:custom.tableName.user}
       WORKSPACE_TABLE: ${self:custom.tableName.workspace}
       PATH_TABLE: ${self:custom.tableName.path}
       COMPONENT_TABLE: ${self:custom.tableName.component}
@@ -289,9 +303,22 @@ resources:
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserWorkspaceIndex
+            KeySchema:
+              - AttributeName: user_id
+                KeyType: HASH
+              - AttributeName: workspace_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     WorkspaceTable:
       Type: AWS::DynamoDB::Table
@@ -315,9 +342,22 @@ resources:
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
+          - AttributeName: normalized_name
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: WorkspacePathIndex
+            KeySchema:
+              - AttributeName: workspace_id
+                KeyType: HASH
+              - AttributeName: normalized_name
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     ComponentTable:
       Type: AWS::DynamoDB::Table
@@ -327,9 +367,22 @@ resources:
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
+          - AttributeName: path_id
+            AttributeType: S
+          - AttributeName: name
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: PathComponentIndex
+            KeySchema:
+              - AttributeName: path_id
+                KeyType: HASH
+              - AttributeName: name
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     DataTable:
       Type: AWS::DynamoDB::Table
