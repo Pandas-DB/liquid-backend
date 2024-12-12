@@ -108,17 +108,21 @@ type Mutation {
   # Component mutations
   createComponent(pathId: ID!, name: String!, hasData: Boolean!, hasAction: Boolean!, metadata: AWSJSON): Component
   deleteComponent(id: ID!): Boolean
-  
+
   # Data mutations
   createData(componentId: ID!, data: AWSJSON!, dataMap: AWSJSON!, addToDataLake: Boolean = true): Data
   deleteData(id: ID!, deleteInDataLake: Boolean = true): Boolean
 }
 
 type Subscription {
-  onCreateComponent(pathId: ID!): Component @aws_subscribe(mutations: ["createComponent"])
-  onDeleteComponent(pathId: ID!): Component @aws_subscribe(mutations: ["deleteComponent"])
-  onCreateData(componentId: ID!): Data @aws_subscribe(mutations: ["createData"])
-  onDeleteData(componentId: ID!): Data @aws_subscribe(mutations: ["deleteData"])
+  onCreateComponent(pathId: ID!): Component
+    @aws_subscribe(mutations: ["createComponent"])
+  onDeleteComponent(pathId: ID!): Boolean
+    @aws_subscribe(mutations: ["deleteComponent"])
+  onCreateData(componentId: ID!): Data
+    @aws_subscribe(mutations: ["createData"])
+  onDeleteData(componentId: ID!): Boolean
+    @aws_subscribe(mutations: ["deleteData"])
 }
 
 type WorkspaceConnection {

@@ -1,1 +1,5 @@
-$util.toJson($context.result)
+#if($context.arguments.componentId)
+  #set($result = $context.result)
+  #set($result.componentId = $context.arguments.componentId)
+#end
+$util.toJson($result)

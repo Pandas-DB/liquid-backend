@@ -27,6 +27,7 @@ curl -X POST \
   }'
 """
 
+from os import getenv
 import requests
 import json
 
@@ -106,8 +107,8 @@ def bulk_create_data(api_endpoint: str, api_key: str, workspace_name: str, path_
 # Example usage
 if __name__ == "__main__":
     # Your AppSync configuration
-    API_ENDPOINT = "YOUR_APPSYNC_ENDPOINT"
-    API_KEY = "YOUR_API_KEY"
+    API_ENDPOINT = getenv('API_ENDPOINT')
+    API_KEY = getenv('API_KEY')
     
     # Example data events
     data_events = [

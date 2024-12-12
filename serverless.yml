@@ -1,8 +1,14 @@
 service: workspace-management
 
 plugins:
-  - serverless-python-requirements
   - serverless-appsync-plugin
+
+layers:
+  dependencies:
+    path: layer
+    description: Required dependencies for data processing
+    compatibleRuntimes:
+      - python3.9
 
 provider:
   name: aws
@@ -53,18 +59,6 @@ custom:
     component: ${self:custom.tablePrefix}-component
     data: ${self:custom.tablePrefix}-data
 
-  # Python requirements plugin configuration
-  pythonRequirements:
-    layer:
-      name: python-deps
-      description: Python dependencies
-    noDeploy:
-      - pytest
-      - pytest-cov
-      - black
-      - flake8
-    dockerizePip: true
-
   # AppSync configuration
   appSync:
     name: ${self:service}-${self:provider.stage}
@@ -73,8 +67,16 @@ custom:
       - name: default
         description: Default API Key
         expiresAfter: 30d
-    schema: schema/schema.graphql
+    schema:
+      - schema/schema.graphql
+      - schema/schema_additions.graphql
     mappingTemplatesLocation: schema/resolvers
+    additionalAuthentication:
+      - authenticationType: API_KEY
+    defaultAuthentication:
+      authenticationType: API_KEY
+    substitutions:
+      subscriptions: true
     mappingTemplates:
       - type: Query
         field: listWorkspaces
@@ -106,6 +108,18 @@ custom:
         request: Query.listData.req.vtl
         response: Query.listData.res.vtl
 
+      - type: Mutation
+        field: createComponent
+        dataSource: componentTable
+        request: Mutation.createComponent.req.vtl
+        response: Mutation.createComponent.res.vtl
+
+      - type: Mutation
+        field: deleteComponent
+        dataSource: componentTable
+        request: Mutation.deleteComponent.req.vtl
+        response: Mutation.deleteComponent.res.vtl
+
     dataSources:
       - type: AMAZON_DYNAMODB
         name: workspaceTable
@@ -134,12 +148,15 @@ custom:
       - type: AWS_LAMBDA
         name: bulkDataSource
         config:
-          functionName: !Ref BulkDataHandlerLambdaFunction
+          lambdaFunctionArn: "arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:${self:service}-${self:provider.stage}-bulkDataHandler"
           serviceRoleArn: !GetAtt AppSyncLambdaServiceRole.Arn
 
 functions:
   dataToS3:
+    name: ${self:service}-${self:provider.stage}-dataToS3
     handler: src/functions/data_handlers/data_to_s3.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }  # Reference the layer
     events:
       - stream:
           type: dynamodb
@@ -152,7 +169,10 @@ functions:
       DATA_TABLE: ${self:custom.tableName.data}
 
   cascadeDelete:
+    name: ${self:service}-${self:provider.stage}-cascadeDelete
     handler: src/functions/cascade_handlers/cascade_delete.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }  # Reference the layer
     events:
       - stream:
           type: dynamodb
@@ -164,7 +184,10 @@ functions:
       DATA_TABLE: ${self:custom.tableName.data}
 
   bulkDataHandler:
+    name: ${self:service}-${self:provider.stage}-bulkDataHandler
     handler: src/functions/data_handlers/bulk_data_handler.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }  # Reference the layer
     environment:
       WORKSPACE_TABLE: ${self:custom.tableName.workspace}
       PATH_TABLE: ${self:custom.tableName.path}
@@ -242,4 +265,88 @@ resources:
                 - Effect: Allow
                   Action:
                     - lambda:InvokeFunction
-                  Resource: !GetAtt BulkDataHandlerLambdaFunction.Arn
+                  Resource:
+                    - "arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:${self:service}-${self:provider.stage}-bulkDataHandler"
+
+    # DynamoDB Tables
+    UserTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.user}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+
+    AccountTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.account}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+
+    WorkspaceTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.workspace}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    PathTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.path}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+
+    ComponentTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.component}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+
+    DataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName.data}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    # S3 Bucket
+    DataBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${self:provider.stage}-data-bucket
