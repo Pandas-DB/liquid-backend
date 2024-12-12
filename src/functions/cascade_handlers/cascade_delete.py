@@ -10,27 +10,6 @@ logger = setup_logging(__name__)
 dynamodb = boto3.client('dynamodb')
 deserializer = TypeDeserializer()
 
-def handler(event: Dict[str, Any], context: Any) -> None:
-    """Handle DynamoDB Stream events for cascade deletion."""
-    for record in event['Records']:
-        try:
-            # Only process REMOVE events
-            if record['eventName'] != 'REMOVE':
-                continue
-                
-            old_image = {k: deserializer.deserialize(v) for k, v in record['dynamodb']['OldImage'].items()}
-            table_name = record['eventSourceARN'].split('/')[1]
-            
-            if table_name == 'workspace':
-                delete_workspace_cascade(old_image['id'])
-            elif table_name == 'path':
-                delete_path_cascade(old_image['id'])
-            elif table_name == 'component':
-                delete_component_cascade(old_image['id'])
-                
-        except Exception as e:
-            logger.error(f"Error processing delete cascade: {str(e)}", exc_info=True)
-            raise
 
 def delete_workspace_cascade(workspace_id: str) -> None:
     """Delete workspace and all related resources."""
@@ -82,3 +61,26 @@ def delete_component_cascade(component_id: str) -> None:
     except Exception as e:
         logger.error(f"Error in component cascade delete: {str(e)}", exc_info=True)
         raise
+
+
+def handler(event: Dict[str, Any], context: Any) -> None:
+    """Handle DynamoDB Stream events for cascade deletion."""
+    for record in event['Records']:
+        try:
+            # Only process REMOVE events
+            if record['eventName'] != 'REMOVE':
+                continue
+
+            old_image = {k: deserializer.deserialize(v) for k, v in record['dynamodb']['OldImage'].items()}
+            table_name = record['eventSourceARN'].split('/')[1]
+
+            if table_name == 'workspace':
+                delete_workspace_cascade(old_image['id'])
+            elif table_name == 'path':
+                delete_path_cascade(old_image['id'])
+            elif table_name == 'component':
+                delete_component_cascade(old_image['id'])
+
+        except Exception as e:
+            logger.error(f"Error processing delete cascade: {str(e)}", exc_info=True)
+            raise

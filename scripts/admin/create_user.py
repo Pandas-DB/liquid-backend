@@ -7,6 +7,7 @@ import boto3
 import argparse
 from datetime import datetime
 from typing import Optional, Dict, Any
+import uuid
 
 
 def create_admin_user(

@@ -4,6 +4,7 @@ input DataEvent {
 }
 
 input BulkDataInput {
+  admin_email: String!
   workspace_name: String!
   path_name: String!
   component_name: String!

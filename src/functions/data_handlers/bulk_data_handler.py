@@ -11,37 +11,58 @@ logger = setup_logging(__name__)
 dynamodb = boto3.resource('dynamodb')
 
 
+def get_admin_user(email: str) -> str:
+    """Get existing user or fail."""
+    user_table = dynamodb.Table(os.environ['USER_TABLE'])
+
+    # Check for existing user
+    users = user_table.scan(
+        FilterExpression='email = :email',
+        ExpressionAttributeNames={'email': email}
+    )
+
+    if not users['Items']:
+        raise Exception(f"Admin user with email {email} not found. Please create the user first.")
+
+    return users['Items'][0]['id']
+
 def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, bool]:
-    """Get existing workspace or create new one with account."""
+    """
+    Get existing workspace or create new one with account.
+    If workspace exists, verify user is admin, otherwise fail.
+    If workspace doesn't exist, create it and make user admin.
+    """
     workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
     account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
-    
+
     # Check for existing workspace by name
     workspaces = workspace_table.scan(
         FilterExpression='#name = :name',
         ExpressionAttributeNames={'#name': 'name'},
         ExpressionAttributeValues={':name': workspace_name}
     )
-    
+
     if workspaces['Items']:
-        # Check if user has access to this workspace
+        # Workspace exists, verify user is admin
         workspace = workspaces['Items'][0]
         accounts = account_table.query(
             IndexName='UserWorkspaceIndex',
             KeyConditionExpression=Key('user_id').eq(user_id) & Key('workspace_id').eq(workspace['id'])
         )
-        
-        if accounts['Items']:
-            return workspace['id'], False
-        
-        # User doesn't have access, create account
-        account_id = create_account(user_id, workspace['id'], False)
+
+        if not accounts['Items']:
+            raise Exception(f"User is not associated with workspace '{workspace_name}'")
+
+        # Check if user is admin
+        if not accounts['Items'][0]['user_is_workspace_admin']:
+            raise Exception(f"User is not an admin of workspace '{workspace_name}'")
+
         return workspace['id'], False
-    
-    # Create new workspace and admin account
+
+    # Workspace doesn't exist, create it and make user admin
     workspace_id = create_workspace(workspace_name)
-    account_id = create_account(user_id, workspace_id, True)
-    
+    account_id = create_account(user_id, workspace_id, True)  # Always create as admin
+
     return workspace_id, True
 
 def get_or_create_path(workspace_id: str, path_name: str) -> Tuple[str, bool]:
@@ -178,13 +199,13 @@ def create_data_entries(component_id: str, data_events: List[Dict], add_to_data_
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle bulk data creation with workspace/path/component hierarchy."""
     try:
-        # Extract user ID from context
-        user_id = event['identity']['sub']
         input_data = event['arguments']['input']
+
+        user_id = get_admin_user(input_data['admin_email'])
 
         # Get or create workspace and related entities
         workspace_id, workspace_created = get_or_create_workspace(
-            user_id,
+            user_id,  # Now we pass the verified admin user id
             input_data['workspace_name']
         )
 

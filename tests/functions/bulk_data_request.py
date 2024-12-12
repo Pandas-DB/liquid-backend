@@ -31,14 +31,16 @@ from os import getenv
 import requests
 import json
 
-def bulk_create_data(api_endpoint: str, api_key: str, workspace_name: str, path_name: str, 
-                    component_name: str, data_events: list, add_to_data_lake: bool = True):
+def bulk_create_data(api_endpoint: str, api_key: str, admin_email: str, workspace_name: str,
+                    path_name: str, component_name: str, data_events: list,
+                    add_to_data_lake: bool = True):
     """
     Send bulk data creation request to AppSync API
     
     Args:
         api_endpoint: Your AppSync API endpoint
         api_key: Your AppSync API key
+        admin_email: str
         workspace_name: Name of the workspace
         path_name: Name of the path
         component_name: Name of the component
@@ -64,6 +66,7 @@ def bulk_create_data(api_endpoint: str, api_key: str, workspace_name: str, path_
     # Variables for the query
     variables = {
         "input": {
+            "admin_email": admin_email,
             "workspace_name": workspace_name,
             "path_name": path_name,
             "component_name": component_name,
@@ -126,13 +129,14 @@ if __name__ == "__main__":
         result = bulk_create_data(
             api_endpoint=API_ENDPOINT,
             api_key=API_KEY,
+            admin_email="admin@ikonicshop.com",
             workspace_name="my-workspace",
             path_name="my-path",
             component_name="my-component",
             data_events=data_events,
             add_to_data_lake=True
         )
-        
+
         print("Bulk data creation successful!")
         print(json.dumps(result, indent=2))
         
