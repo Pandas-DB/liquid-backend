@@ -115,7 +115,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Construct table names based on stage
-    prefix = f"workspace-management-{args.stage}"
+    prefix = f"liquid-backend-{args.stage}"
     user_table = f"{prefix}-user"
     account_table = f"{prefix}-account"
     workspace_table = f"{prefix}-workspace"

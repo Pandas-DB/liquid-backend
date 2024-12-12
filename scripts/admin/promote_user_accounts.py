@@ -18,7 +18,7 @@ class UserAccountPromoter:
         self.dynamodb = session.resource('dynamodb', region_name=region)
 
         # Initialize table names
-        prefix = f"workspace-management-{stage}"
+        prefix = f"liquid-backend-{stage}"
         self.table_names = {
             'user': f"{prefix}-user",
             'account': f"{prefix}-account",

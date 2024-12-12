@@ -21,7 +21,7 @@ class ResourceDeleter:
         self.delete_s3 = delete_s3
         
         # Initialize table names
-        prefix = f"workspace-management-{stage}"
+        prefix = f"liquid-backend-{stage}"
         self.table_names = {
             'user': f"{prefix}-user",
             'account': f"{prefix}-account",

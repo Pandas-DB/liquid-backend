@@ -19,7 +19,7 @@ class WorkspaceDeleter:
         self.s3 = session.client('s3', region_name=region)
 
         # Initialize table names
-        prefix = f"workspace-management-{stage}"
+        prefix = f"liquid-backend-{stage}"
         self.table_names = {
             'workspace': f"{prefix}-workspace",
             'account': f"{prefix}-account",
