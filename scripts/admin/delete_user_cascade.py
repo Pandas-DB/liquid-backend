@@ -250,3 +250,13 @@ if __name__ == "__main__":
         stage=args.stage,
         delete_s3=not args.skip_s3
     )
+
+    if not deleter.check_tables_exist():
+        print("Required tables do not exist. Please check your configuration.")
+        exit(1)
+
+    if deleter.delete_cascade(args.email):
+        print("\nUser and associated resources deleted successfully!")
+    else:
+        print("\nFailed to complete deletion process")
+        exit(1)
