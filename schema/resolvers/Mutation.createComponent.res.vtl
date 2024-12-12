@@ -1,0 +1,5 @@
+#if($context.arguments.pathId)
+  #set($result = $context.result)
+  #set($result.pathId = $context.arguments.pathId)
+#end
+$util.toJson($result)

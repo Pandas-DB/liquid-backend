@@ -5,55 +5,11 @@ import logging
 from typing import Dict, Any, List, Tuple
 from datetime import datetime
 from boto3.dynamodb.conditions import Key
-from ...lib.common_utils import setup_logging
+from ...lib.common_utils import setup_logging, generate_id
 
 logger = setup_logging(__name__)
 dynamodb = boto3.resource('dynamodb')
 
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle bulk data creation with workspace/path/component hierarchy."""
-    try:
-        # Extract user ID from context
-        user_id = event['identity']['sub']
-        input_data = event['arguments']['input']
-        
-        # Get or create workspace and related entities
-        workspace_id, workspace_created = get_or_create_workspace(
-            user_id,
-            input_data['workspace_name']
-        )
-        
-        path_id, path_created = get_or_create_path(
-            workspace_id,
-            input_data['path_name']
-        )
-        
-        component_id, component_created = get_or_create_component(
-            workspace_id,
-            path_id,
-            input_data['component_name']
-        )
-        
-        # Create all data entries
-        created_data_ids = create_data_entries(
-            component_id,
-            input_data['data'],
-            input_data.get('addToDataLake', True)
-        )
-        
-        return {
-            'workspace_id': workspace_id,
-            'path_id': path_id,
-            'component_id': component_id,
-            'created_data_ids': created_data_ids,
-            'workspace_created': workspace_created,
-            'path_created': path_created,
-            'component_created': component_created
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in bulk data creation: {str(e)}", exc_info=True)
-        raise
 
 def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, bool]:
     """Get existing workspace or create new one with account."""
@@ -132,7 +88,7 @@ def get_or_create_component(workspace_id: str, path_id: str, component_name: str
 def create_workspace(name: str) -> str:
     """Create a new workspace."""
     workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
-    workspace_id = f"ws-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    workspace_id = generate_id('ws')
     
     workspace_table.put_item(Item={
         'id': workspace_id,
@@ -147,8 +103,8 @@ def create_workspace(name: str) -> str:
 def create_account(user_id: str, workspace_id: str, is_admin: bool) -> str:
     """Create a new account."""
     account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
-    account_id = f"acc-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
+    account_id = generate_id('acc')
+
     account_table.put_item(Item={
         'id': account_id,
         'user_id': user_id,
@@ -163,8 +119,8 @@ def create_account(user_id: str, workspace_id: str, is_admin: bool) -> str:
 def create_path(workspace_id: str, name: str, normalized_name: str) -> str:
     """Create a new path."""
     path_table = dynamodb.Table(os.environ['PATH_TABLE'])
-    path_id = f"path-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
+    path_id = generate_id('path')
+
     path_table.put_item(Item={
         'id': path_id,
         'workspace_id': workspace_id,
@@ -180,7 +136,7 @@ def create_path(workspace_id: str, name: str, normalized_name: str) -> str:
 def create_component(workspace_id: str, path_id: str, name: str) -> str:
     """Create a new component."""
     component_table = dynamodb.Table(os.environ['COMPONENT_TABLE'])
-    component_id = f"comp-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    component_id = generate_id('comp')
     
     component_table.put_item(Item={
         'id': component_id,
@@ -202,7 +158,7 @@ def create_data_entries(component_id: str, data_events: List[Dict], add_to_data_
     created_ids = []
     
     for event in data_events:
-        data_id = f"data-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        data_id = generate_id('data')
         
         data_table.put_item(Item={
             'id': data_id,
@@ -217,3 +173,49 @@ def create_data_entries(component_id: str, data_events: List[Dict], add_to_data_
         created_ids.append(data_id)
     
     return created_ids
+
+
+def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle bulk data creation with workspace/path/component hierarchy."""
+    try:
+        # Extract user ID from context
+        user_id = event['identity']['sub']
+        input_data = event['arguments']['input']
+
+        # Get or create workspace and related entities
+        workspace_id, workspace_created = get_or_create_workspace(
+            user_id,
+            input_data['workspace_name']
+        )
+
+        path_id, path_created = get_or_create_path(
+            workspace_id,
+            input_data['path_name']
+        )
+
+        component_id, component_created = get_or_create_component(
+            workspace_id,
+            path_id,
+            input_data['component_name']
+        )
+
+        # Create all data entries
+        created_data_ids = create_data_entries(
+            component_id,
+            input_data['data'],
+            input_data.get('addToDataLake', True)
+        )
+
+        return {
+            'workspace_id': workspace_id,
+            'path_id': path_id,
+            'component_id': component_id,
+            'created_data_ids': created_data_ids,
+            'workspace_created': workspace_created,
+            'path_created': path_created,
+            'component_created': component_created
+        }
+
+    except Exception as e:
+        logger.error(f"Error in bulk data creation: {str(e)}", exc_info=True)
+        raise

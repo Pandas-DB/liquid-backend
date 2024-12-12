@@ -50,7 +50,7 @@ def create_admin_user(
     result = {}
 
     # Create user
-    user_id = f"user-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    user_id = f"user-{str(uuid.uuid4())}"
     try:
         user_table.put_item(Item={
             'id': user_id,
@@ -68,7 +68,7 @@ def create_admin_user(
     if create_workspace:
         # Create workspace
         workspace_table = dynamodb.Table(workspace_table_name)
-        workspace_id = f"ws-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        workspace_id = f"ws-{str(uuid.uuid4())}"
         workspace_name = f"Admin Workspace - {email}"
         try:
             workspace_table.put_item(Item={
@@ -83,7 +83,7 @@ def create_admin_user(
 
             # Always create account when workspace is created
             account_table = dynamodb.Table(account_table_name)
-            account_id = f"acc-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            account_id = f"acc-{str(uuid.uuid4())}"
             account_table.put_item(Item={
                 'id': account_id,
                 'user_id': user_id,

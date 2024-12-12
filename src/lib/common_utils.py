@@ -1,5 +1,7 @@
 import logging
 from typing import Any
+import uuid
+
 
 def setup_logging(name: str) -> logging.Logger:
     """Set up logging configuration."""
@@ -17,6 +19,7 @@ def setup_logging(name: str) -> logging.Logger:
     logger.setLevel(logging.INFO)
     return logger
 
+
 def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
     """Safely get nested dictionary values."""
     try:
@@ -25,3 +28,15 @@ def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
         return obj
     except (KeyError, TypeError, IndexError):
         return default
+
+
+def generate_id(prefix: str) -> str:
+    """Generate a unique ID with a prefix.
+    
+    Args:
+        prefix: Resource type prefix (e.g., 'ws', 'acc', 'path')
+    Returns:
+        A string in format '{prefix}-{uuid4}'
+    """
+    return f"{prefix}-{str(uuid.uuid4())}"
+

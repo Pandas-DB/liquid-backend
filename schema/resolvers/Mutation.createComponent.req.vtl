@@ -1,0 +1,16 @@
+{
+  "version": "2017-02-28",
+  "operation": "PutItem",
+  "key": {
+    "id": .dynamodb.toDynamoDBJson(.autoId())
+  },
+  "attributeValues": {
+    "created_at": .dynamodb.toDynamoDBJson(.time.nowISO8601()),
+    "updated_at": .dynamodb.toDynamoDBJson(.time.nowISO8601()),
+    "path_id": .dynamodb.toDynamoDBJson(.args.pathId),
+    "name": .dynamodb.toDynamoDBJson(.args.name),
+    "has_data": .dynamodb.toDynamoDBJson(.args.hasData),
+    "has_action": .dynamodb.toDynamoDBJson(.args.hasAction),
+    "metadata": .dynamodb.toDynamoDBJson(.args.metadata)
+  }
+}
