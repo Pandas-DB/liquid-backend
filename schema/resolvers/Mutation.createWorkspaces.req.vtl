@@ -1,0 +1,50 @@
+#set($userId = $ctx.identity.sub)
+
+## Generate IDs for new workspace and account
+#set($workspaceId = $util.autoId())
+#set($accountId = $util.autoId())
+#set($timestamp = $util.time.nowISO8601())
+
+## Prepare the items
+#set($workspace = {
+    "id": $workspaceId,
+    "name": $ctx.args.name,
+    "metadata": $util.defaultIfNull($ctx.args.metadata, "{}"),
+    "created_at": $timestamp,
+    "updated_at": $timestamp
+})
+
+#set($account = {
+    "id": $accountId,
+    "user_id": $userId,
+    "workspace_id": $workspaceId,
+    "user_is_workspace_admin": true,
+    "created_at": $timestamp,
+    "updated_at": $timestamp
+})
+
+## Create both workspace and account in a transaction
+{
+    "version": "2018-05-29",
+    "operation": "TransactWriteItems",
+    "transactItems": [
+        {
+            "table": "WorkspaceTable",
+            "operation": "PutItem",
+            "key": {
+                "id": $util.dynamodb.toDynamoDBJson($workspace.id)
+            },
+            "attributeValues": $util.dynamodb.toMapValues($workspace)
+        },
+        {
+            "table": "AccountTable",
+            "operation": "PutItem",
+            "key": {
+                "id": $util.dynamodb.toDynamoDBJson($account.id)
+            },
+            "attributeValues": $util.dynamodb.toMapValues($account)
+        }
+    ]
+}
+
+$util.qr($ctx.stash.put("workspace", $workspace))

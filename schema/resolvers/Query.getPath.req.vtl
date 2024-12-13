@@ -1,17 +1,16 @@
 #set($userId = $ctx.identity.sub)
 
-## Get the path first
 {
     "version": "2018-05-29",
     "operation": "GetItem",
     "key": {
-        "id": $util.dynamodb.toDynamoDBJson($ctx.args.pathId)
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
     }
 }
 
 $util.qr($ctx.stash.put("path", $ctx.result))
 
-## Check if user is workspace admin
+## Check if user has access to the workspace
 {
     "version": "2018-05-29",
     "operation": "Query",

@@ -1,5 +1,24 @@
-#if($context.arguments.pathId)
-  #set($result = $context.result)
-  #set($result.pathId = $context.arguments.pathId)
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
 #end
-$util.toJson($result)
+
+#if($ctx.result.items.isEmpty() || !$ctx.result.items[0].user_is_workspace_admin)
+    $util.error("Not authorized to create components in this workspace")
+#end
+
+{
+    "version": "2018-05-29",
+    "operation": "PutItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+    },
+    "attributeValues": {
+        "path_id": $util.dynamodb.toDynamoDBJson($ctx.args.pathId),
+        "name": $util.dynamodb.toDynamoDBJson($ctx.args.name),
+        "has_data": $util.dynamodb.toDynamoDBJson($ctx.args.hasData),
+        "has_action": $util.dynamodb.toDynamoDBJson($ctx.args.hasAction),
+        "metadata": $util.dynamodb.toDynamoDBJson($util.defaultIfNull($ctx.args.metadata, "{}")),
+        "created_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+        "updated_at": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601())
+    }
+}

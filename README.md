@@ -5,15 +5,17 @@ This repository contains a serverless application designed to handle data proces
 ## Project Structure
 
 ```
-├── build-layer.sh                 # Script to build dependencies layer for AWS Lambda
-├── package.json                   # Node.js package configuration file
-├── package-lock.json              # Dependency lock file
-├── README.md                      # Project documentation (this file)
-├── requirements-lambda.txt        # Python dependencies for Lambda functions
-├── requirements-test.txt          # Python dependencies for testing
-├── requirements.txt               # General Python dependencies
-├── schema                         # GraphQL schema and resolvers
-│   ├── resolvers                  # VTL files for GraphQL mutations and queries
+├── build-layer.sh
+├── package.json
+├── package-lock.json
+├── README.md
+├── requirements-lambda.txt
+├── requirements-test.txt
+├── requirements.txt
+├── serverless.yml
+├── serverless-indexes.yml
+├── schema
+│   ├── resolvers
 │   │   ├── Mutation.bulkCreateData.req.vtl
 │   │   ├── Mutation.bulkCreateData.res.vtl
 │   │   ├── Mutation.createComponent.req.vtl
@@ -21,17 +23,36 @@ This repository contains a serverless application designed to handle data proces
 │   │   ├── Mutation.createData.req.vtl
 │   │   ├── Mutation.createData.res.vtl
 │   │   ├── Mutation.createPath.req.vtl
+│   │   ├── Mutation.createPath.res.vtl
+│   │   ├── Mutation.createWorkspaces.req.vtl
+│   │   ├── Mutation.createWorkspaces.res.vtl
 │   │   ├── Mutation.deleteComponent.req.vtl
 │   │   ├── Mutation.deleteComponent.res.vtl
 │   │   ├── Mutation.deleteData.req.vtl
 │   │   ├── Mutation.deleteData.res.vtl
+│   │   ├── Mutation.deletePath.req.vtl
+│   │   ├── Mutation.deletePath.res.vtl
+│   │   ├── Mutation.deleteWorkspaces.req.vtl
+│   │   ├── Mutation.deleteWorkspaces.res.vtl
+│   │   ├── Query.getComponent.req.vtl
+│   │   ├── Query.getComponent.res.vtl
+│   │   ├── Query.getData.req.vtl
+│   │   ├── Query.getData.res.vtl
+│   │   ├── Query.getPath.req.vtl
+│   │   ├── Query.getPath.res.vtl
+│   │   ├── Query.getWorkspaces.req.vtl
+│   │   ├── Query.getWorkspaces.res.vtl
+│   │   ├── Query.listComponents.req.vtl
+│   │   ├── Query.listComponents.res.vtl
 │   │   ├── Query.listData.req.vtl
 │   │   ├── Query.listData.res.vtl
+│   │   ├── Query.listPath.req.vtl
+│   │   ├── Query.listPath.res.vtl
 │   │   ├── Query.listWorkspaces.req.vtl
 │   │   └── Query.listWorkspaces.res.vtl
-│   ├── schema_additions.graphql   # Additional GraphQL schema definitions
-│   └── schema.graphql             # Main GraphQL schema file
-├── scripts                        # Administrative scripts for maintenance
+│   ├── schema_additions.graphql
+│   └── schema.graphql
+├── scripts
 │   └── admin
 │       ├── cleanup_orphan_workspaces.py
 │       ├── create_user_accounts.py
@@ -40,23 +61,27 @@ This repository contains a serverless application designed to handle data proces
 │       ├── delete_user_cascade.py
 │       ├── delete_workspace_cascade.py
 │       └── promote_user_accounts.py
-├── serverless.yml                 # Serverless framework configuration
-├── src                            # Source code for application logic
+├── src
 │   ├── functions
-│   │   ├── cascade_handlers       # Cascade-related handlers
+│   │   ├── cascade_handlers
 │   │   │   ├── cascade_delete.py
 │   │   │   └── utils.py
-│   │   └── data_handlers          # Data-related handlers
-│   │       ├── bulk_data_handler.py
-│   │       ├── bulk_get_data_handler.py
+│   │   └── data_handlers
 │   │       ├── data_to_s3.py
+│   │       ├── get_component_data.py
+│   │       ├── get_path_components.py
+│   │       ├── get_workspace_paths.py
+│   │       ├── post_bulk_data_handler.py
 │   │       └── utils.py
 │   └── lib
-│       └── common_utils.py        # Common utility functions
-└── tests                          # Unit tests for the application
+│       └── common_utils.py
+└── tests
     ├── functions
-    │   ├── bulk_data_request.py
-    │   └── client_test.py
+    │   ├── bulk_post_data_request.py
+    │   ├── client_test.py
+    │   ├── get_component_data_request.py
+    │   ├── get_path_components_request.py
+    │   └── get_workspace_paths_request.py
     └── resolvers
 ```
 
@@ -77,7 +102,9 @@ This repository contains a serverless application designed to handle data proces
 - **Unit Tests**: The `tests` folder includes Python test files to validate functionality for both functions and resolvers.
 
 ### Configuration
-- **Serverless Framework**: The `serverless.yml` file configures the deployment of the application, including Lambda functions, triggers, and resources.
+- **Serverless Framework**: 
+  - The `serverless.yml` file configures the deployment of the application, including Lambda functions, triggers, and resources.
+  - `serverless-indexes.yml` complements (must be run afterwards) the configuration adding further `GlobalSecondaryIndexes` to DynamoDB
 
 ## Getting Started
 
@@ -101,6 +128,11 @@ This repository contains a serverless application designed to handle data proces
    ```
 
 ### Deployment
+
+```bash
+   serverless deploy
+   serverless deploy serverless-indexes.yml
+```
 
 ## Testing
 

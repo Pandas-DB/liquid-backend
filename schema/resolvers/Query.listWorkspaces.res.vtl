@@ -1,1 +1,19 @@
-$util.toJson($context.result)
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
+#end
+
+#set($workspaceIds = [])
+#foreach($account in $ctx.result.items)
+    $util.qr($workspaceIds.add($account.workspace_id))
+#end
+
+{
+    "version": "2018-05-29",
+    "operation": "Query",
+    "query": {
+        "expression": "id IN :workspaceIds",
+        "expressionValues": {
+            ":workspaceIds": $util.dynamodb.toDynamoDBJson($workspaceIds)
+        }
+    }
+}

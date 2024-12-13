@@ -70,56 +70,61 @@ class UserAccountDeleter:
         return accounts
 
     def delete_workspace_cascade(self, workspace_id: str) -> bool:
-        """Delete workspace and all its resources."""
+        """Delete workspace and all its resources efficiently using new indexes."""
         try:
             print(f"\nStarting cascade deletion for workspace: {workspace_id}")
 
-            # Get and delete paths
-            paths = self.tables['path'].scan(
-                FilterExpression='workspace_id = :ws_id',
+            # Get all data entries for this workspace using WorkspaceDataIndex
+            data_entries = self.tables['data'].query(
+                IndexName='WorkspaceDataIndex',
+                KeyConditionExpression='workspace_id = :ws_id',
+                ExpressionAttributeValues={':ws_id': workspace_id}
+            ).get('Items', [])
+
+            # Delete S3 objects first if enabled
+            if self.delete_s3:
+                for data in data_entries:
+                    if 's3_location' in data:
+                        try:
+                            self.s3.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=data['s3_location']
+                            )
+                            print(f"Deleted S3 object: {data['s3_location']}")
+                        except Exception as e:
+                            print(f"Warning: Failed to delete S3 object: {str(e)}")
+
+            # Delete all data entries
+            for data in data_entries:
+                self.tables['data'].delete_item(Key={'id': data['id']})
+                print(f"Deleted data entry: {data['id']}")
+
+            # Get and delete all components using WorkspaceComponentIndex
+            components = self.tables['component'].query(
+                IndexName='WorkspaceComponentIndex',
+                KeyConditionExpression='workspace_id = :ws_id',
+                ExpressionAttributeValues={':ws_id': workspace_id}
+            ).get('Items', [])
+
+            for component in components:
+                self.tables['component'].delete_item(Key={'id': component['id']})
+                print(f"Deleted component: {component['id']}")
+
+            # Get and delete all paths using WorkspacePathIndex
+            paths = self.tables['path'].query(
+                IndexName='WorkspacePathIndex',
+                KeyConditionExpression='workspace_id = :ws_id',
                 ExpressionAttributeValues={':ws_id': workspace_id}
             ).get('Items', [])
 
             for path in paths:
-                print(f"Processing path: {path['id']}")
-
-                # Get and delete components
-                components = self.tables['component'].scan(
-                    FilterExpression='path_id = :path_id',
-                    ExpressionAttributeValues={':path_id': path['id']}
-                ).get('Items', [])
-
-                for component in components:
-                    print(f"Processing component: {component['id']}")
-
-                    # Get and delete data entries
-                    data_entries = self.tables['data'].scan(
-                        FilterExpression='component_id = :comp_id',
-                        ExpressionAttributeValues={':comp_id': component['id']}
-                    ).get('Items', [])
-
-                    if self.delete_s3:
-                        for data in data_entries:
-                            if 's3_location' in data:
-                                self.s3.delete_object(
-                                    Bucket=self.bucket_name,
-                                    Key=data['s3_location']
-                                )
-                                print(f"Deleted S3 object: {data['s3_location']}")
-
-                    for data in data_entries:
-                        self.tables['data'].delete_item(Key={'id': data['id']})
-                        print(f"Deleted data entry: {data['id']}")
-
-                    self.tables['component'].delete_item(Key={'id': component['id']})
-                    print(f"Deleted component: {component['id']}")
-
                 self.tables['path'].delete_item(Key={'id': path['id']})
                 print(f"Deleted path: {path['id']}")
 
             # Delete all accounts for this workspace
-            accounts = self.tables['account'].scan(
-                FilterExpression='workspace_id = :ws_id',
+            accounts = self.tables['account'].query(
+                IndexName='UserWorkspaceIndex',
+                KeyConditionExpression='workspace_id = :ws_id',
                 ExpressionAttributeValues={':ws_id': workspace_id}
             ).get('Items', [])
 
@@ -127,10 +132,12 @@ class UserAccountDeleter:
                 self.tables['account'].delete_item(Key={'id': account['id']})
                 print(f"Deleted account: {account['id']}")
 
+            # Finally delete the workspace
             self.tables['workspace'].delete_item(Key={'id': workspace_id})
             print(f"Deleted workspace: {workspace_id}")
 
             return True
+
         except Exception as e:
             print(f"Error in cascade deletion: {str(e)}")
             return False

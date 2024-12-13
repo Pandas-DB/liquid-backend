@@ -2,14 +2,15 @@
     $util.error($ctx.error.message, $ctx.error.type)
 #end
 
+## Verify user is workspace admin
 #if($ctx.result.items.isEmpty() || !$ctx.result.items[0].user_is_workspace_admin)
-    $util.error("Not authorized to delete components in this workspace")
+    $util.error("Not authorized to delete paths in this workspace")
 #end
 
 {
     "version": "2018-05-29",
     "operation": "DeleteItem",
     "key": {
-        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+        "id": $util.dynamodb.toDynamoDBJson($ctx.stash.path.id)
     }
 }

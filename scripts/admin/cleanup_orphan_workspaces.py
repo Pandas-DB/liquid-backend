@@ -37,7 +37,7 @@ class OrphanWorkspaceCleaner:
         # S3 bucket name and deletion flag
         self.bucket_name = f"{prefix}-data-bucket"
         self.delete_s3 = delete_s3
-    
+
     def check_tables_exist(self) -> bool:
         """Verify all required tables exist."""
         try:
@@ -148,37 +148,75 @@ class OrphanWorkspaceCleaner:
             print(f"Error deleting workspace resources: {str(e)}")
             return False
 
-    def cleanup_orphaned_workspaces(self, dry_run: bool = True) -> None:
-        """Find and clean up orphaned workspaces."""
-        workspaces = self.get_all_workspaces()
-        print(f"\nFound {len(workspaces)} total workspaces")
-        
-        orphaned_workspaces = []
-        for workspace in workspaces:
-            admins = self.get_workspace_admins(workspace['id'])
-            if not admins:
-                orphaned_workspaces.append(workspace)
-        
-        print(f"Found {len(orphaned_workspaces)} orphaned workspaces")
-        
-        if not orphaned_workspaces:
-            print("No cleanup needed")
-            return
-        
-        for workspace in orphaned_workspaces:
-            print(f"\nOrphaned workspace found:")
-            print(f"ID: {workspace['id']}")
-            print(f"Name: {workspace['name']}")
-            print(f"Created at: {workspace['created_at']}")
-            
-            if dry_run:
-                print("(Dry run - no deletions performed)")
-            else:
-                print("Deleting workspace and all associated resources...")
-                if self.delete_workspace_resources(workspace['id']):
-                    print("Successfully deleted workspace and resources")
-                else:
-                    print("Failed to delete workspace")
+    def cleanup_orphaned_components(self) -> None:
+        """Clean up components and data that don't have valid parent resources."""
+        try:
+            print("\nChecking for orphaned components and data...")
+
+            # Get all workspaces for validation
+            workspaces = {ws['id']: ws for ws in self.tables['workspace'].scan().get('Items', [])}
+            paths = {path['id']: path for path in self.tables['path'].scan().get('Items', [])}
+
+            # Check all components
+            components = self.tables['component'].scan().get('Items', [])
+            orphaned_components = []
+
+            for component in components:
+                is_orphaned = False
+
+                # Check if workspace exists
+                if component['workspace_id'] not in workspaces:
+                    print(f"Component {component['id']} references non-existent workspace {component['workspace_id']}")
+                    is_orphaned = True
+
+                # Check if path exists
+                if component['path_id'] not in paths:
+                    print(f"Component {component['id']} references non-existent path {component['path_id']}")
+                    is_orphaned = True
+
+                # Check if path belongs to correct workspace
+                if not is_orphaned and paths[component['path_id']]['workspace_id'] != component['workspace_id']:
+                    print(f"Component {component['id']} has mismatched workspace_id with its path")
+                    is_orphaned = True
+
+                if is_orphaned:
+                    orphaned_components.append(component)
+
+            # Clean up orphaned components and their data
+            for component in orphaned_components:
+                # Delete associated data first
+                data_entries = self.tables['data'].query(
+                    IndexName='ComponentDataIndex',
+                    KeyConditionExpression='component_id = :comp_id',
+                    ExpressionAttributeValues={':comp_id': component['id']}
+                ).get('Items', [])
+
+                for data in data_entries:
+                    # Delete from S3 if applicable
+                    if 's3_location' in data:
+                        try:
+                            self.s3.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=data['s3_location']
+                            )
+                            print(f"Deleted orphaned S3 object: {data['s3_location']}")
+                        except Exception as e:
+                            print(f"Warning: Failed to delete S3 object: {str(e)}")
+
+                    # Delete data entry
+                    self.tables['data'].delete_item(Key={'id': data['id']})
+                    print(f"Deleted orphaned data entry: {data['id']}")
+
+                # Delete the component
+                self.tables['component'].delete_item(Key={'id': component['id']})
+                print(f"Deleted orphaned component: {component['id']}")
+
+            print(
+                f"\nCleanup complete. Removed {len(orphaned_components)} orphaned components and their associated data.")
+
+        except Exception as e:
+            print(f"Error during orphaned component cleanup: {str(e)}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Find and cleanup orphaned workspaces')

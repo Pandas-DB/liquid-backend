@@ -18,9 +18,12 @@ provider:
   stage: ${opt:stage, 'dev'}
   environment:
     STAGE: ${self:provider.stage}
+    USER_POOL_ID: !Ref CognitoUserPool
+    USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
   iam:
     role:
       statements:
+        # DynamoDB permissions - consolidated for all tables
         - Effect: Allow
           Action:
             - dynamodb:GetItem
@@ -42,12 +45,48 @@ provider:
             - !Sub "${PathTable.Arn}/index/*"
             - !Sub "${ComponentTable.Arn}/index/*"
             - !Sub "${DataTable.Arn}/index/*"
+
+        # S3 permissions for data lake
         - Effect: Allow
           Action:
             - s3:PutObject
             - s3:GetObject
             - s3:DeleteObject
           Resource: !Sub "${DataBucket.Arn}/*"
+
+        # Cognito User Pool permissions
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminGetUser
+          Resource: !GetAtt CognitoUserPool.Arn
+
+        # AppSync permissions
+        - Effect: Allow
+          Action:
+            - appsync:GraphQL
+          Resource:
+            - !Join
+              - ''
+              - - 'arn:aws:appsync:'
+                - ${self:provider.region}
+                - ':'
+                - Ref: AWS::AccountId
+                - ':apis/'
+                - !GetAtt GraphQlApi.ApiId
+                - '/*'
+
+        # CloudWatch Logs permissions
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource:
+            - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*:*"
 
 custom:
   tablePrefix: ${self:service}-${self:provider.stage}
@@ -62,7 +101,13 @@ custom:
   # AppSync configuration
   appSync:
     name: ${self:service}-${self:provider.stage}
-    authenticationType: API_KEY
+    authenticationType: AMAZON_COGNITO_USER_POOLS
+    userPoolConfig:
+      userPoolId: !Ref CognitoUserPool
+      defaultAction: ALLOW
+      awsRegion: ${self:provider.region}
+    additionalAuthentication:
+      - authenticationType: API_KEY
     apiKeys:
       - name: default
         description: Default API Key
@@ -71,18 +116,59 @@ custom:
       - schema/schema.graphql
       - schema/schema_additions.graphql
     mappingTemplatesLocation: schema/resolvers
-    additionalAuthentication:
-      - authenticationType: API_KEY
     defaultAuthentication:
       authenticationType: API_KEY
     substitutions:
       subscriptions: true
     mappingTemplates:
+
       - type: Query
         field: listWorkspaces
         dataSource: workspaceTable
         request: Query.listWorkspaces.req.vtl
         response: Query.listWorkspaces.res.vtl
+
+      - type: Query
+        field: listPaths
+        dataSource: pathTable
+        request: Query.listPaths.req.vtl
+        response: Query.listPaths.res.vtl
+
+      - type: Query
+        field: listComponents
+        dataSource: componentTable
+        request: Query.listComponents.req.vtl
+        response: Query.listComponents.res.vtl
+
+      - type: Query
+        field: listData
+        dataSource: dataTable
+        request: Query.listData.req.vtl
+        response: Query.listData.res.vtl
+
+      - type: Query
+        field: getWorkspace
+        dataSource: workspaceTable
+        request: Query.getWorkspace.req.vtl
+        response: Query.getWorkspace.res.vtl
+
+      - type: Query
+        field: getPath
+        dataSource: pathTable
+        request: Query.getPath.req.vtl
+        response: Query.getPath.res.vtl
+
+      - type: Query
+        field: getComponent
+        dataSource: componentTable
+        request: Query.getComponent.req.vtl
+        response: Query.getComponent.res.vtl
+
+      - type: Query
+        field: getData
+        dataSource: dataTable
+        request: Query.getData.req.vtl
+        response: Query.getData.res.vtl
 
       - type: Mutation
         field: bulkCreateData
@@ -91,22 +177,28 @@ custom:
         response: Mutation.bulkCreateData.res.vtl
 
       - type: Mutation
-        field: createData
-        dataSource: dataTable
-        request: Mutation.createData.req.vtl
-        response: Mutation.createData.res.vtl
+        field: createWorkspace
+        dataSource: workspaceTable
+        request: Mutation.createWorkspaces.req.vtl
+        response: Mutation.createWorkspaces.res.vtl
 
       - type: Mutation
-        field: deleteData
-        dataSource: dataTable
-        request: Mutation.deleteData.req.vtl
-        response: Mutation.deleteData.res.vtl
+        field: deleteWorkspace
+        dataSource: workspaceTable
+        request: Mutation.deleteWorkspaces.req.vtl
+        response: Mutation.deleteWorkspaces.res.vtl
 
-      - type: Query
-        field: listData
-        dataSource: dataTable
-        request: Query.listData.req.vtl
-        response: Query.listData.res.vtl
+      - type: Mutation
+        field: createPath
+        dataSource: pathTable
+        request: Mutation.createPath.req.vtl
+        response: Mutation.createPath.res.vtl
+
+      - type: Mutation
+        field: deletePath
+        dataSource: pathTable
+        request: Mutation.deletePath.req.vtl
+        response: Mutation.deletePath.res.vtl
 
       - type: Mutation
         field: createComponent
@@ -119,6 +211,18 @@ custom:
         dataSource: componentTable
         request: Mutation.deleteComponent.req.vtl
         response: Mutation.deleteComponent.res.vtl
+
+      - type: Mutation
+        field: createData
+        dataSource: dataTable
+        request: Mutation.createData.req.vtl
+        response: Mutation.createData.res.vtl
+
+      - type: Mutation
+        field: deleteData
+        dataSource: dataTable
+        request: Mutation.deleteData.req.vtl
+        response: Mutation.deleteData.res.vtl
 
     dataSources:
       - type: AMAZON_DYNAMODB
@@ -178,6 +282,7 @@ functions:
           type: dynamodb
           arn: !GetAtt WorkspaceTable.StreamArn
     environment:
+      ACCOUNT_TABLE: ${self:custom.tableName.account}
       WORKSPACE_TABLE: ${self:custom.tableName.workspace}
       PATH_TABLE: ${self:custom.tableName.path}
       COMPONENT_TABLE: ${self:custom.tableName.component}
@@ -185,7 +290,7 @@ functions:
 
   bulkDataHandler:
     name: ${self:service}-${self:provider.stage}-bulkDataHandler
-    handler: src/functions/data_handlers/bulk_data_handler.handler
+    handler: src/functions/data_handlers/post_bulk_data_handler.handler
     layers:
       - { Ref: DependenciesLambdaLayer }  # Reference the layer
     environment:
@@ -196,15 +301,34 @@ functions:
       DATA_TABLE: ${self:custom.tableName.data}
       ACCOUNT_TABLE: ${self:custom.tableName.account}
 
-  bulkDataGet:
-    name: ${self:service}-${self:provider.stage}-bulkDataGet
-    handler: src/functions/data_handlers/bulk_get_data_handler.handler
+  getWorkspacePaths:
+    name: ${self:service}-${self:provider.stage}-getWorkspacePaths
+    handler: src/functions/data_handlers/get_workspace_paths.handler
     layers:
-      - { Ref: DependenciesLambdaLayer }  # Reference the layer
+      - { Ref: DependenciesLambdaLayer }
     environment:
-      USER_TABLE: ${self:custom.tableName.user}
       WORKSPACE_TABLE: ${self:custom.tableName.workspace}
       PATH_TABLE: ${self:custom.tableName.path}
+      ACCOUNT_TABLE: ${self:custom.tableName.account}
+
+  getPathComponents:
+    name: ${self:service}-${self:provider.stage}-getPathComponents
+    handler: src/functions/data_handlers/get_path_components.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }
+    environment:
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
+      PATH_TABLE: ${self:custom.tableName.path}
+      COMPONENT_TABLE: ${self:custom.tableName.component}
+      ACCOUNT_TABLE: ${self:custom.tableName.account}
+
+  getComponentData:
+    name: ${self:service}-${self:provider.stage}-getComponentData
+    handler: src/functions/data_handlers/get_component_data.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }
+    environment:
+      WORKSPACE_TABLE: ${self:custom.tableName.workspace}
       COMPONENT_TABLE: ${self:custom.tableName.component}
       DATA_TABLE: ${self:custom.tableName.data}
       ACCOUNT_TABLE: ${self:custom.tableName.account}
@@ -371,16 +495,18 @@ resources:
             AttributeType: S
           - AttributeName: name
             AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
         GlobalSecondaryIndexes:
-          - IndexName: PathComponentIndex
+          - IndexName: WorkspaceComponentIndex
             KeySchema:
-              - AttributeName: path_id
+              - AttributeName: workspace_id
                 KeyType: HASH
-              - AttributeName: name
-                KeyType: RANGE
             Projection:
               ProjectionType: ALL
 
@@ -392,14 +518,59 @@ resources:
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
+          - AttributeName: component_id
+            AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
         StreamSpecification:
           StreamViewType: NEW_AND_OLD_IMAGES
+        GlobalSecondaryIndexes:
+          - IndexName: WorkspaceDataIndex
+            KeySchema:
+              - AttributeName: workspace_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     # S3 Bucket
     DataBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:service}-${self:provider.stage}-data-bucket
+
+    # Cognito
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-${self:provider.stage}-user-pool
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+          - Name: custom:user_id
+            AttributeDataType: String
+            Mutable: true
+            Required: false
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${self:provider.stage}-client
+        UserPoolId: !Ref CognitoUserPool
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        GenerateSecret: false

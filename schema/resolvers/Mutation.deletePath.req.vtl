@@ -1,11 +1,11 @@
 #set($userId = $ctx.identity.sub)
 
-## Get the path first
+## First get the path to find its workspace_id
 {
     "version": "2018-05-29",
     "operation": "GetItem",
     "key": {
-        "id": $util.dynamodb.toDynamoDBJson($ctx.args.pathId)
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
     }
 }
 

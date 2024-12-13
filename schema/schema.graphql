@@ -59,6 +59,7 @@ type Data {
   id: ID!
   created_at: AWSDateTime!
   updated_at: AWSDateTime!
+  workspace_id: ID!
   component_id: ID!
   data: AWSJSON!
   data_map: AWSJSON!
@@ -67,51 +68,43 @@ type Data {
 }
 
 type Query {
-  # User queries
+  # Admin-only operations
   getUser(id: ID!): User @aws_auth(cognito_groups: ["Admin"])
-  listUserWorkspaces: [Workspace]
+  listUsers: [User] @aws_auth(cognito_groups: ["Admin"])
 
-  # Workspace queries
-  getWorkspace(id: ID!): Workspace
-  listWorkspaces(limit: Int, nextToken: String): WorkspaceConnection!
+  # Workspace operations
+  getWorkspace(id: ID!): Workspace @aws_iam
+  listWorkspaces(limit: Int, nextToken: String): WorkspaceConnection! @aws_iam
+  listUserWorkspaces: [Workspace] @aws_iam
 
-  # Path queries
-  getPath(id: ID!): Path
-  listPaths(workspaceId: ID!, limit: Int, nextToken: String): PathConnection!
-
-  # Component queries
-  getComponent(id: ID!): Component
-  listComponents(pathId: ID!, limit: Int, nextToken: String): ComponentConnection!
-
-  # Data queries
-  getData(id: ID!): Data
-  listData(componentId: ID!, limit: Int, nextToken: String): DataConnection!
+  # Rest of operations that need permission checks in resolvers
+  getPath(id: ID!): Path @aws_iam
+  listPaths(workspaceId: ID!, limit: Int, nextToken: String): PathConnection! @aws_iam
+  getComponent(id: ID!): Component @aws_iam
+  listComponents(pathId: ID!, limit: Int, nextToken: String): ComponentConnection! @aws_iam
+  getData(id: ID!): Data @aws_iam
+  listData(componentId: ID!, limit: Int, nextToken: String): DataConnection! @aws_iam
 }
 
 type Mutation {
-  # Admin mutations
+  # Admin-only operations
   createUser(email: String!, token: String, metadata: AWSJSON): User @aws_auth(cognito_groups: ["Admin"])
   deleteUser(id: ID!): Boolean @aws_auth(cognito_groups: ["Admin"])
-  
-  # Account mutations
-  createAccount(userId: ID!, workspaceId: ID!, userIsWorkspaceAdmin: Boolean!): Account
-  deleteAccount(id: ID!): Boolean
-  
-  # Workspace mutations
-  createWorkspace(name: String!, metadata: AWSJSON): Workspace
-  deleteWorkspace(id: ID!): Boolean
-  
-  # Path mutations
-  createPath(workspaceId: ID!, name: String!, metadata: AWSJSON): Path
-  deletePath(id: ID!): Boolean
-  
-  # Component mutations
-  createComponent(pathId: ID!, name: String!, hasData: Boolean!, hasAction: Boolean!, metadata: AWSJSON): Component
-  deleteComponent(id: ID!): Boolean
 
-  # Data mutations
-  createData(componentId: ID!, data: AWSJSON!, dataMap: AWSJSON!, addToDataLake: Boolean = true): Data
-  deleteData(id: ID!, deleteInDataLake: Boolean = true): Boolean
+  # Operations that need permission checks in resolvers
+  createWorkspace(name: String!, metadata: AWSJSON): Workspace @aws_iam
+  deleteWorkspace(id: ID!): Boolean @aws_iam
+
+  createPath(workspaceId: ID!, name: String!, metadata: AWSJSON): Path @aws_iam
+  deletePath(id: ID!): Boolean @aws_iam
+
+  createComponent(pathId: ID!, name: String!, hasData: Boolean!, hasAction: Boolean!, metadata: AWSJSON): Component @aws_iam
+  deleteComponent(id: ID!): Boolean @aws_iam
+
+  createData(componentId: ID!, data: AWSJSON!, dataMap: AWSJSON!, addToDataLake: Boolean = true): Data @aws_iam
+  deleteData(id: ID!, deleteInDataLake: Boolean = true): Boolean @aws_iam
+
+  bulkCreateData(input: BulkDataInput!): BulkDataResponse! @aws_iam
 }
 
 type Subscription {

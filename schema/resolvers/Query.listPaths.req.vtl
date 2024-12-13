@@ -1,6 +1,6 @@
 #set($userId = $ctx.identity.sub)
 
-## Check if user is workspace admin
+## Check if user has access to workspace
 {
     "version": "2018-05-29",
     "operation": "Query",
@@ -14,3 +14,4 @@
     }
 }
 
+$util.qr($ctx.stash.put("workspaceId", $ctx.args.workspaceId))

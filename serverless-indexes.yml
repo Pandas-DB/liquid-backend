@@ -1,0 +1,74 @@
+# serverless-indexes.yml
+service: liquid-backend
+
+provider:
+  name: aws
+  runtime: python3.9
+  profile: ikonicshop
+  region: ${opt:region, 'eu-west-1'}
+  stage: ${opt:stage, 'dev'}
+
+resources:
+  Resources:
+    # Only include DynamoDB table updates
+    ComponentTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-component
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: path_id
+            AttributeType: S
+          - AttributeName: name
+            AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: WorkspaceComponentIndex
+            KeySchema:
+              - AttributeName: workspace_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: PathComponentIndex
+            KeySchema:
+              - AttributeName: path_id
+                KeyType: HASH
+              - AttributeName: name
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    DataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-data
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: component_id
+            AttributeType: S
+          - AttributeName: workspace_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: WorkspaceDataIndex
+            KeySchema:
+              - AttributeName: workspace_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: ComponentDataIndex
+            KeySchema:
+              - AttributeName: component_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL

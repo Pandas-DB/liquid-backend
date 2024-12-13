@@ -1,13 +1,37 @@
+#set($userId = $ctx.identity.sub)
+
+## Get the component
+{
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.componentId)
+    }
+}
+
+$util.qr($ctx.stash.put("component", $ctx.result))
+
+## Get the path
+{
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.stash.component.path_id)
+    }
+}
+
+$util.qr($ctx.stash.put("path", $ctx.result))
+
+## Check workspace access
 {
     "version": "2018-05-29",
     "operation": "Query",
-    "index": "ComponentDataIndex",
+    "index": "UserWorkspaceIndex",
     "query": {
-        "expression": "component_id = :componentId",
+        "expression": "user_id = :userId AND workspace_id = :workspaceId",
         "expressionValues": {
-            ":componentId": $util.dynamodb.toDynamoDBJson($ctx.args.componentId)
+            ":userId": $util.dynamodb.toDynamoDBJson($userId),
+            ":workspaceId": $util.dynamodb.toDynamoDBJson($ctx.stash.path.workspace_id)
         }
-    },
-    "limit": $util.defaultIfNull($ctx.args.limit, 20),
-    "nextToken": $util.toJson($util.defaultIfNull($ctx.args.nextToken, null))
+    }
 }

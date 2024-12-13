@@ -1,7 +1,38 @@
+#set($userId = $ctx.identity.sub)
+
+## First get the component
 {
-  "version": "2017-02-28",
-  "operation": "DeleteItem",
-  "key": {
-    "id": .dynamodb.toDynamoDBJson(.args.id)
-  }
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+    }
 }
+
+$util.qr($ctx.stash.put("component", $ctx.result))
+
+## Get the path
+{
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.stash.component.path_id)
+    }
+}
+
+$util.qr($ctx.stash.put("path", $ctx.result))
+
+## Check if user is workspace admin
+{
+    "version": "2018-05-29",
+    "operation": "Query",
+    "index": "UserWorkspaceIndex",
+    "query": {
+        "expression": "user_id = :userId AND workspace_id = :workspaceId",
+        "expressionValues": {
+            ":userId": $util.dynamodb.toDynamoDBJson($userId),
+            ":workspaceId": $util.dynamodb.toDynamoDBJson($ctx.stash.path.workspace_id)
+        }
+    }
+}
+

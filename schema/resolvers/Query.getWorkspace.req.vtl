@@ -1,6 +1,6 @@
 #set($userId = $ctx.identity.sub)
 
-## Check if user is workspace admin
+## Check if user has access to the workspace
 {
     "version": "2018-05-29",
     "operation": "Query",
@@ -9,8 +9,9 @@
         "expression": "user_id = :userId AND workspace_id = :workspaceId",
         "expressionValues": {
             ":userId": $util.dynamodb.toDynamoDBJson($userId),
-            ":workspaceId": $util.dynamodb.toDynamoDBJson($ctx.args.workspaceId)
+            ":workspaceId": $util.dynamodb.toDynamoDBJson($ctx.args.id)
         }
     }
 }
 
+$util.qr($ctx.stash.put("workspaceId", $ctx.args.id))

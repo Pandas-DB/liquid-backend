@@ -11,20 +11,44 @@ logger = setup_logging(__name__)
 dynamodb = boto3.resource('dynamodb')
 
 
+def check_workspace_name_conflicts(user_id: str, workspace_name: str) -> None:
+    """Check if user already has access to a workspace with this name."""
+    workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
+    account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
+
+    # Get all workspaces with this name
+    workspaces = workspace_table.scan(
+        FilterExpression='#name = :name',
+        ExpressionAttributeNames={'#name': 'name'},
+        ExpressionAttributeValues={':name': workspace_name}
+    )['Items']
+
+    for workspace in workspaces:
+        # Check if user has an account in this workspace
+        accounts = account_table.query(
+            IndexName='UserWorkspaceIndex',
+            KeyConditionExpression='user_id = :uid AND workspace_id = :wid',
+            ExpressionAttributeValues={
+                ':uid': user_id,
+                ':wid': workspace['id']
+            }
+        )['Items']
+
+        if accounts:
+            raise Exception(f"User already has access to a workspace named '{workspace_name}'")
+
+
 def get_admin_user(email: str) -> str:
     """Get existing user or fail."""
     user_table = dynamodb.Table(os.environ['USER_TABLE'])
 
     logger.info(f"Looking for user with email: {email}")
     try:
-        # Check for existing user
         users = user_table.scan(
             FilterExpression='#email = :email',
             ExpressionAttributeNames={'#email': 'email'},
             ExpressionAttributeValues={':email': email}
         )
-
-        # logger.info(f"Scan result: {json.dumps(users)}")
 
         if not users['Items']:
             logger.error(f"No user found with email {email}")
@@ -38,6 +62,76 @@ def get_admin_user(email: str) -> str:
         logger.error(f"Error in get_admin_user: {str(e)}")
         raise
 
+
+def check_path_name_exists(workspace_id: str, path_name: str) -> bool:
+    """Check if path name already exists in workspace."""
+    path_table = dynamodb.Table(os.environ['PATH_TABLE'])
+    normalized_name = path_name.lower().replace(' ', '-')
+
+    paths = path_table.query(
+        IndexName='WorkspacePathIndex',
+        KeyConditionExpression='workspace_id = :wid AND normalized_name = :name',
+        ExpressionAttributeValues={
+            ':wid': workspace_id,
+            ':name': normalized_name
+        }
+    )['Items']
+
+    return len(paths) > 0
+
+
+def check_component_name_exists(path_id: str, component_name: str) -> bool:
+    """Check if component name already exists in path."""
+    component_table = dynamodb.Table(os.environ['COMPONENT_TABLE'])
+
+    components = component_table.query(
+        IndexName='PathComponentIndex',
+        KeyConditionExpression='path_id = :pid AND #name = :name',
+        ExpressionAttributeNames={'#name': 'name'},
+        ExpressionAttributeValues={
+            ':pid': path_id,
+            ':name': component_name
+        }
+    )['Items']
+
+    return len(components) > 0
+
+
+def create_workspace(name: str) -> str:
+    """Create a new workspace."""
+    workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
+    workspace_id = generate_id('ws')
+    timestamp = datetime.now().isoformat()
+
+    workspace_table.put_item(Item={
+        'id': workspace_id,
+        'name': name,
+        'created_at': timestamp,
+        'updated_at': timestamp,
+        'metadata': '{}'
+    })
+
+    return workspace_id
+
+
+def create_account(user_id: str, workspace_id: str, is_admin: bool) -> str:
+    """Create a new account."""
+    account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
+    account_id = generate_id('acc')
+    timestamp = datetime.now().isoformat()
+
+    account_table.put_item(Item={
+        'id': account_id,
+        'user_id': user_id,
+        'workspace_id': workspace_id,
+        'user_is_workspace_admin': is_admin,
+        'created_at': timestamp,
+        'updated_at': timestamp
+    })
+
+    return account_id
+
+
 def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, bool]:
     """
     Get existing workspace or create new one with account.
@@ -46,6 +140,9 @@ def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, boo
     """
     workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
     account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
+
+    # First check for naming conflicts
+    check_workspace_name_conflicts(user_id, workspace_name)
 
     # Check for existing workspace by name
     workspaces = workspace_table.scan(
@@ -65,7 +162,6 @@ def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, boo
         if not accounts['Items']:
             raise Exception(f"User is not associated with workspace '{workspace_name}'")
 
-        # Check if user is admin
         if not accounts['Items'][0]['user_is_workspace_admin']:
             raise Exception(f"User is not an admin of workspace '{workspace_name}'")
 
@@ -73,41 +169,31 @@ def get_or_create_workspace(user_id: str, workspace_name: str) -> Tuple[str, boo
 
     # Workspace doesn't exist, create it and make user admin
     workspace_id = create_workspace(workspace_name)
-    account_id = create_account(user_id, workspace_id, True)  # Always create as admin
+    account_id = create_account(user_id, workspace_id, True)
 
     return workspace_id, True
+
 
 def get_or_create_path(workspace_id: str, path_name: str) -> Tuple[str, bool]:
     """Get existing path or create new one."""
     path_table = dynamodb.Table(os.environ['PATH_TABLE'])
-
     normalized_name = path_name.lower().replace(' ', '-')
 
-    # Check for existing path using the GSI directly
-    # No need for FilterExpression since both workspace_id and normalized_name are part of the index
     try:
-        response = path_table.query(
-            IndexName='WorkspacePathIndex',
-            KeyConditionExpression='workspace_id = :ws_id AND normalized_name = :norm_name',
-            ExpressionAttributeValues={
-                ':ws_id': workspace_id,
-                ':norm_name': normalized_name
-            }
-        )
+        # Check for naming conflicts
+        if check_path_name_exists(workspace_id, path_name):
+            raise Exception(f"Path named '{path_name}' already exists in this workspace")
 
-        if response['Items']:
-            return response['Items'][0]['id'], False
-
-        # Create new path if not found
         path_id = generate_id('path')
+        timestamp = datetime.now().isoformat()
 
         path_table.put_item(Item={
             'id': path_id,
             'workspace_id': workspace_id,
             'name': path_name,
             'normalized_name': normalized_name,
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat(),
+            'created_at': timestamp,
+            'updated_at': timestamp,
             'metadata': '{}'
         })
 
@@ -122,25 +208,14 @@ def get_or_create_component(workspace_id: str, path_id: str, component_name: str
     """Get existing component or create new one."""
     component_table = dynamodb.Table(os.environ['COMPONENT_TABLE'])
 
-    # Use the GSI directly with KeyConditionExpression
     try:
-        response = component_table.query(
-            IndexName='PathComponentIndex',
-            KeyConditionExpression='path_id = :path_id AND #name = :name',
-            ExpressionAttributeNames={
-                '#name': 'name'
-            },
-            ExpressionAttributeValues={
-                ':path_id': path_id,
-                ':name': component_name
-            }
-        )
-
-        if response['Items']:
-            return response['Items'][0]['id'], False
+        # Check for naming conflicts
+        if check_component_name_exists(path_id, component_name):
+            raise Exception(f"Component named '{component_name}' already exists in this path")
 
         # Create new component
         component_id = generate_id('comp')
+        timestamp = datetime.now().isoformat()
 
         component_table.put_item(Item={
             'id': component_id,
@@ -149,8 +224,8 @@ def get_or_create_component(workspace_id: str, path_id: str, component_name: str
             'name': component_name,
             'has_data': True,
             'has_action': False,
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat(),
+            'created_at': timestamp,
+            'updated_at': timestamp,
             'metadata': '{}'
         })
 
@@ -160,94 +235,32 @@ def get_or_create_component(workspace_id: str, path_id: str, component_name: str
         logger.error(f"Error in get_or_create_component: {str(e)}")
         raise
 
-def create_workspace(name: str) -> str:
-    """Create a new workspace."""
-    workspace_table = dynamodb.Table(os.environ['WORKSPACE_TABLE'])
-    workspace_id = generate_id('ws')
-    
-    workspace_table.put_item(Item={
-        'id': workspace_id,
-        'name': name,
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat(),
-        'metadata': '{}'
-    })
-    
-    return workspace_id
 
-def create_account(user_id: str, workspace_id: str, is_admin: bool) -> str:
-    """Create a new account."""
-    account_table = dynamodb.Table(os.environ['ACCOUNT_TABLE'])
-    account_id = generate_id('acc')
-
-    account_table.put_item(Item={
-        'id': account_id,
-        'user_id': user_id,
-        'workspace_id': workspace_id,
-        'user_is_workspace_admin': is_admin,
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat()
-    })
-    
-    return account_id
-
-def create_path(workspace_id: str, name: str, normalized_name: str) -> str:
-    """Create a new path."""
-    path_table = dynamodb.Table(os.environ['PATH_TABLE'])
-    path_id = generate_id('path')
-
-    path_table.put_item(Item={
-        'id': path_id,
-        'workspace_id': workspace_id,
-        'name': name,
-        'normalized_name': normalized_name,
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat(),
-        'metadata': '{}'
-    })
-    
-    return path_id
-
-def create_component(workspace_id: str, path_id: str, name: str) -> str:
-    """Create a new component."""
-    component_table = dynamodb.Table(os.environ['COMPONENT_TABLE'])
-    component_id = generate_id('comp')
-    
-    component_table.put_item(Item={
-        'id': component_id,
-        'workspace_id': workspace_id,
-        'path_id': path_id,
-        'name': name,
-        'has_data': True,
-        'has_action': False,
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat(),
-        'metadata': '{}'
-    })
-    
-    return component_id
-
-def create_data_entries(component_id: str, data_events: List[Dict], add_to_data_lake: bool) -> List[str]:
+def create_data_entries(component_id: str, workspace_id: str, data_events: List[Dict], add_to_data_lake: bool) -> List[
+    str]:
     """Create multiple data entries."""
     data_table = dynamodb.Table(os.environ['DATA_TABLE'])
     created_ids = []
-    
+    timestamp = datetime.now().isoformat()
+
     for event in data_events:
         data_id = generate_id('data')
-        
+
         data_table.put_item(Item={
             'id': data_id,
             'component_id': component_id,
+            'workspace_id': workspace_id,
             'data': event['data'],
             'data_map': event.get('dataMap', '{}'),
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat(),
+            'created_at': timestamp,
+            'updated_at': timestamp,
             'addToDataLake': add_to_data_lake
         })
-        
+
         created_ids.append(data_id)
-    
+
     return created_ids
+
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle bulk data creation with workspace/path/component hierarchy."""
@@ -291,6 +304,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Create all data entries
         created_data_ids = create_data_entries(
             component_id,
+            workspace_id,
             input_data['data'],
             input_data.get('addToDataLake', True)
         )
@@ -311,5 +325,4 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in bulk data creation: {str(e)}", exc_info=True)
-        # Important: Re-raise the error to ensure AppSync gets an error response
         raise

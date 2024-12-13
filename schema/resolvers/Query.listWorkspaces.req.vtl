@@ -1,4 +1,6 @@
 #set($userId = $ctx.identity.sub)
+
+## Get all workspaces where user has an account
 {
     "version": "2018-05-29",
     "operation": "Query",
@@ -8,7 +10,5 @@
         "expressionValues": {
             ":userId": $util.dynamodb.toDynamoDBJson($userId)
         }
-    },
-    "limit": $util.defaultIfNull($ctx.args.limit, 20),
-    "nextToken": $util.toJson($util.defaultIfNull($ctx.args.nextToken, null))
+    }
 }

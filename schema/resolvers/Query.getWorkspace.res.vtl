@@ -1,0 +1,16 @@
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
+#end
+
+## Check if user has an account for this workspace
+#if($ctx.result.items.isEmpty())
+    $util.error("Not authorized to access this workspace")
+#end
+
+{
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.stash.workspaceId)
+    }
+}

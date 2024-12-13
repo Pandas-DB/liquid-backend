@@ -3,17 +3,17 @@
 #end
 
 #if($ctx.result.items.isEmpty())
-    $util.error("Not authorized to list data in this workspace")
+    $util.error("Not authorized to list components in this workspace")
 #end
 
 {
     "version": "2018-05-29",
     "operation": "Query",
-    "index": "ComponentDataIndex",
+    "index": "PathComponentIndex",
     "query": {
-        "expression": "component_id = :componentId",
+        "expression": "path_id = :pathId",
         "expressionValues": {
-            ":componentId": $util.dynamodb.toDynamoDBJson($ctx.args.componentId)
+            ":pathId": $util.dynamodb.toDynamoDBJson($ctx.args.pathId)
         }
     },
     "limit": $util.defaultIfNull($ctx.args.limit, 20),

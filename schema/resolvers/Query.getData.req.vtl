@@ -1,11 +1,22 @@
 #set($userId = $ctx.identity.sub)
 
+## Get the data entry
+{
+    "version": "2018-05-29",
+    "operation": "GetItem",
+    "key": {
+        "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+    }
+}
+
+$util.qr($ctx.stash.put("data", $ctx.result))
+
 ## Get the component
 {
     "version": "2018-05-29",
     "operation": "GetItem",
     "key": {
-        "id": $util.dynamodb.toDynamoDBJson($ctx.args.componentId)
+        "id": $util.dynamodb.toDynamoDBJson($ctx.stash.data.component_id)
     }
 }
 
@@ -22,7 +33,7 @@ $util.qr($ctx.stash.put("component", $ctx.result))
 
 $util.qr($ctx.stash.put("path", $ctx.result))
 
-## Check if user is workspace admin
+## Check workspace access
 {
     "version": "2018-05-29",
     "operation": "Query",
