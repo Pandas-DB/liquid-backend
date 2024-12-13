@@ -29,12 +29,6 @@ resources:
           - AttributeName: id
             KeyType: HASH
         GlobalSecondaryIndexes:
-          - IndexName: WorkspaceComponentIndex
-            KeySchema:
-              - AttributeName: workspace_id
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
           - IndexName: PathComponentIndex
             KeySchema:
               - AttributeName: path_id
@@ -60,12 +54,6 @@ resources:
           - AttributeName: id
             KeyType: HASH
         GlobalSecondaryIndexes:
-          - IndexName: WorkspaceDataIndex
-            KeySchema:
-              - AttributeName: workspace_id
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
           - IndexName: ComponentDataIndex
             KeySchema:
               - AttributeName: component_id

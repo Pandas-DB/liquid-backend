@@ -1,6 +1,61 @@
 # Liquid Backend
 
-This repository contains a serverless application designed to handle data processing tasks, user account management, and GraphQL schema management. Below is a detailed breakdown of the project structure.
+Liquid Backend is a modern real-time Data Backend 
+
+Its infrastructure is flexible to any data structure, highly-scalable, low-latency and serverless. 
+
+Providing a unified API for ingesting, and serving structured and unstructured data 
+from multiple sources both in real time and batch. It enables seamless real-time
+integration with front-end clients, third-party services, and additional clients.
+
+## Getting Started
+
+### Prerequisites
+- **Node.js**: Install Node.js for managing dependencies and running scripts.
+- **Python**: Install Python for running scripts and Lambda functions.
+- **Serverless Framework**: Install the Serverless framework for deploying the application.
+
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   ```
+2. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+3. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Deployment
+
+```bash
+   serverless deploy
+   serverless deploy serverless-indexes.yml
+```
+
+## Key Components
+
+### Schema
+- **GraphQL Schema**: Located in the `schema` folder, this directory contains the main schema definition and resolver files written in VTL (Velocity Template Language).
+- **Resolvers**: Handle GraphQL queries and mutations, including bulk data operations, component creation, and workspace listing.
+
+### Scripts
+- **Administrative Scripts**: Found in the `scripts/admin` folder, these Python scripts handle tasks like cleaning up orphaned workspaces, managing user accounts, and promoting users.
+
+### Source Code
+- **Functions**: The `src/functions` folder contains logic for handling cascade deletions, data operations, and utility functions.
+- **Common Utilities**: Shared utilities are located in `src/lib/common_utils.py`.
+
+### Testing
+- **Unit Tests**: The `tests` folder includes Python test files to validate functionality for both functions and resolvers.
+
+### Configuration
+- **Serverless Framework**: 
+  - The `serverless.yml` file configures the deployment of the application, including Lambda functions, triggers, and resources.
+  - `serverless-indexes.yml` complements (must be run afterwards) the configuration adding further `GlobalSecondaryIndexes` to DynamoDB
 
 ## Project Structure
 
@@ -83,55 +138,6 @@ This repository contains a serverless application designed to handle data proces
     │   ├── get_path_components_request.py
     │   └── get_workspace_paths_request.py
     └── resolvers
-```
-
-## Key Components
-
-### Schema
-- **GraphQL Schema**: Located in the `schema` folder, this directory contains the main schema definition and resolver files written in VTL (Velocity Template Language).
-- **Resolvers**: Handle GraphQL queries and mutations, including bulk data operations, component creation, and workspace listing.
-
-### Scripts
-- **Administrative Scripts**: Found in the `scripts/admin` folder, these Python scripts handle tasks like cleaning up orphaned workspaces, managing user accounts, and promoting users.
-
-### Source Code
-- **Functions**: The `src/functions` folder contains logic for handling cascade deletions, data operations, and utility functions.
-- **Common Utilities**: Shared utilities are located in `src/lib/common_utils.py`.
-
-### Testing
-- **Unit Tests**: The `tests` folder includes Python test files to validate functionality for both functions and resolvers.
-
-### Configuration
-- **Serverless Framework**: 
-  - The `serverless.yml` file configures the deployment of the application, including Lambda functions, triggers, and resources.
-  - `serverless-indexes.yml` complements (must be run afterwards) the configuration adding further `GlobalSecondaryIndexes` to DynamoDB
-
-## Getting Started
-
-### Prerequisites
-- **Node.js**: Install Node.js for managing dependencies and running scripts.
-- **Python**: Install Python for running scripts and Lambda functions.
-- **Serverless Framework**: Install the Serverless framework for deploying the application.
-
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   ```
-2. Install Node.js dependencies:
-   ```bash
-   npm install
-   ```
-3. Install Python dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Deployment
-
-```bash
-   serverless deploy
-   serverless deploy serverless-indexes.yml
 ```
 
 ## Testing
