@@ -1,6 +1,6 @@
 # Liquid Backend
 
-Liquid Backend is a modern real-time Data Backend 
+Liquid Backend is an open-source real-time Data Backend. 
 
 Its infrastructure is flexible to any data structure, highly-scalable, low-latency and serverless. 
 
@@ -31,9 +31,9 @@ integration with front-end clients, third-party services, and additional clients
 
 ### Deployment
 
+Deploy core infrastructure:
 ```bash
    serverless deploy
-   serverless deploy serverless-indexes.yml
 ```
 
 ## Key Components

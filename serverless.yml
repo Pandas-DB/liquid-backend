@@ -509,6 +509,14 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+          - IndexName: PathComponentIndex
+            KeySchema:
+              - AttributeName: path_id
+                KeyType: HASH
+              - AttributeName: name
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     DataTable:
       Type: AWS::DynamoDB::Table
@@ -531,6 +539,12 @@ resources:
           - IndexName: WorkspaceDataIndex
             KeySchema:
               - AttributeName: workspace_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: ComponentDataIndex
+            KeySchema:
+              - AttributeName: component_id
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
