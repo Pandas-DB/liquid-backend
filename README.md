@@ -18,7 +18,7 @@ integration with front-end clients, third-party services, and additional clients
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Pandas-DB/liquid-backend/
    ```
 2. Install Node.js dependencies:
    ```bash
@@ -34,6 +34,13 @@ integration with front-end clients, third-party services, and additional clients
 Deploy core infrastructure:
 ```bash
    serverless deploy
+```
+
+Optionally if you want to run SQL queries on your data (both console or programmatically)
+or ODBC connections to BI tool or alike, then you need to deploy the SQL infrastructure:
+
+```bash
+serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
 ```
 
 ## Key Components
@@ -55,7 +62,7 @@ Deploy core infrastructure:
 ### Configuration
 - **Serverless Framework**: 
   - The `serverless.yml` file configures the deployment of the application, including Lambda functions, triggers, and resources.
-  - `serverless-indexes.yml` complements (must be run afterwards) the configuration adding further `GlobalSecondaryIndexes` to DynamoDB
+  - OPTIONAL: `serverless-athena.yml` deploys the DataWarehouse infrastructure to run SQL queries on your data 
 
 ## Project Structure
 
@@ -68,7 +75,7 @@ Deploy core infrastructure:
 ├── requirements-test.txt
 ├── requirements.txt
 ├── serverless.yml
-├── serverless-indexes.yml
+├── serverless-athena.yml
 ├── schema
 │   ├── resolvers
 │   │   ├── Mutation.bulkCreateData.req.vtl

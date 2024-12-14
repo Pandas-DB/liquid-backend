@@ -1,0 +1,116 @@
+service: liquid-backend
+
+provider:
+  name: aws
+  runtime: python3.9
+  profile: ikonicshop
+  region: ${opt:region, 'eu-west-1'}
+  stage: ${opt:stage, 'dev'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - athena:StartQueryExecution
+            - athena:GetQueryExecution
+            - athena:GetQueryResults
+            - glue:CreateDatabase
+            - glue:CreateTable
+            - glue:GetTable
+            - glue:UpdateTable
+          Resource:
+            - "arn:aws:athena:${self:provider.region}:${aws:accountId}:workgroup/*"
+            - "arn:aws:glue:${self:provider.region}:${aws:accountId}:catalog"
+            - "arn:aws:glue:${self:provider.region}:${aws:accountId}:database/*"
+            - "arn:aws:glue:${self:provider.region}:${aws:accountId}:table/*"
+
+functions:
+  executeAthenaQuery:
+    handler: src/functions/athena_handlers/execute_query.handler
+    layers:
+      - { Ref: DependenciesLambdaLayer }
+    events:
+      - http:
+          path: athena/query
+          method: post
+          cors: true
+    environment:
+      ATHENA_DATABASE: ${self:service}_${self:provider.stage}_db
+      ATHENA_WORKGROUP: ${self:service}-${self:provider.stage}-workgroup
+
+resources:
+  Resources:
+    AthenaQueryResultsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${self:provider.stage}-athena-results
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldResults
+              Status: Enabled
+              ExpirationInDays: 7
+
+    AthenaWorkGroup:
+      Type: AWS::Athena::WorkGroup
+      Properties:
+        Name: ${self:service}-${self:provider.stage}-workgroup
+        Description: Workgroup for ${self:service} ${self:provider.stage}
+        State: ENABLED
+        WorkGroupConfiguration:
+          ResultConfiguration:
+            OutputLocation: s3://${self:service}-${self:provider.stage}-athena-results/
+            EncryptionConfiguration:
+              EncryptionOption: SSE_S3
+
+    GlueDatabase:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: ${self:service}_${self:provider.stage}_db
+          Description: Database for ${self:service} ${self:provider.stage} data
+
+    GlueTable:
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref GlueDatabase
+        TableInput:
+          Name: data_table
+          Description: Table for analyzing data in S3
+          TableType: EXTERNAL_TABLE
+          Parameters:
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Location: s3://${self:service}-${self:provider.stage}-data-bucket/
+            InputFormat: org.apache.hadoop.mapred.TextInputFormat
+            OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+            SerdeInfo:
+              SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+            Columns:
+              - Name: id
+                Type: string
+              - Name: component_id
+                Type: string
+              - Name: workspace_id
+                Type: string
+              - Name: data
+                Type: string
+
+    DataBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: ${self:service}-${self:provider.stage}-data-bucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: athena.amazonaws.com
+              Action:
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - arn:aws:s3:::${self:service}-${self:provider.stage}-data-bucket
+                - arn:aws:s3:::${self:service}-${self:provider.stage}-data-bucket/
