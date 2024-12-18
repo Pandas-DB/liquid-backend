@@ -204,6 +204,16 @@ class UserAccountDeleter:
             return False
 
 
+# TODO does NOT work. Error message:
+#  Found user: user-62459ad5 (test@test.com)
+#  Found 1 matching accounts:
+#   Workspace: ws-3d22d18a
+#   Admin access: True
+#  ...
+#  Processing admin account for workspace ws-3d22d18a
+#  Starting cascade deletion for workspace: ws-3d22d18a
+#  Error in cascade deletion: An error occurred (ValidationException) when calling the Query operation: Query condition missed key schema element: user_id
+#  Failed to delete workspace ws-3d22d18a
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Delete specific user accounts')
     parser.add_argument('email', help='Email of the user')

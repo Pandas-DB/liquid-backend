@@ -8,6 +8,13 @@ Providing a unified API for ingesting, and serving structured and unstructured d
 from multiple sources both in real time and batch. It enables seamless real-time
 integration with front-end clients, third-party services, and additional clients.
 
+## Use cases
+
+Liquid Backend is very useful to:
+
+- Feed and Plug real-time analytics in a FrontEnd
+- Connect real-time data consumers as App clients, LLM or AI Agents to your data
+
 ## Getting Started
 
 ### Prerequisites
@@ -36,12 +43,42 @@ Deploy core infrastructure:
    serverless deploy
 ```
 
-Optionally if you want to run SQL queries on your data (both console or programmatically)
-or ODBC connections to BI tool or alike, then you need to deploy the SQL infrastructure:
+Optionally if you want to run SQL queries on your data (both though console or programmatically)
+or ODBC connections to BI tools or alike, then you need to deploy the SQL infrastructure:
 
 ```bash
 serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
 ```
+
+## Data Storage Architecture
+
+This Data Backend stores data as a folder-like structure, that allows flexibility to save
+any data format without further backend work while all components (set of data)
+are accessible in milliseconds
+
+```
+├── workspace1
+│   ├── my-alfa-path/my-secondary-path   # --> this could be a new menu path in a FrontEnd
+│   │   ├── my-component-A  # --> this could be plotted in FrontEnd as a linechart
+│   │   │   ├── datapoint1
+│   │   │   ├── datapoint2
+│   │   ├── my-component-B  # --> this could be plotted in FrontEnd as a table
+│   │   │   ├── datapoint1
+│   ├── my-beta-path
+│   │   ├── my-component-beta-one  # --> this could be plotted in FrontEnd as a real time-barchart
+│   │   │   ├── datapoint1
+│   │   │   ├── ...
+│   │   │   ├── datapoint1000000
+├── workspace2
+...
+```
+
+## Infrastructure
+
+Liquid Backend is currently only compatible with AWS. The architecture it deploys is:
+
+> Add infra schema here
+
 
 ## Key Components
 
@@ -74,8 +111,6 @@ serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
 ├── requirements-lambda.txt
 ├── requirements-test.txt
 ├── requirements.txt
-├── serverless.yml
-├── serverless-athena.yml
 ├── schema
 │   ├── resolvers
 │   │   ├── Mutation.bulkCreateData.req.vtl
@@ -102,14 +137,14 @@ serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
 │   │   ├── Query.getData.res.vtl
 │   │   ├── Query.getPath.req.vtl
 │   │   ├── Query.getPath.res.vtl
-│   │   ├── Query.getWorkspaces.req.vtl
-│   │   ├── Query.getWorkspaces.res.vtl
+│   │   ├── Query.getWorkspace.req.vtl
+│   │   ├── Query.getWorkspace.res.vtl
 │   │   ├── Query.listComponents.req.vtl
 │   │   ├── Query.listComponents.res.vtl
 │   │   ├── Query.listData.req.vtl
 │   │   ├── Query.listData.res.vtl
-│   │   ├── Query.listPath.req.vtl
-│   │   ├── Query.listPath.res.vtl
+│   │   ├── Query.listPaths.req.vtl
+│   │   ├── Query.listPaths.res.vtl
 │   │   ├── Query.listWorkspaces.req.vtl
 │   │   └── Query.listWorkspaces.res.vtl
 │   ├── schema_additions.graphql
@@ -123,8 +158,12 @@ serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
 │       ├── delete_user_cascade.py
 │       ├── delete_workspace_cascade.py
 │       └── promote_user_accounts.py
+├── serverless-athena.yml
+├── serverless.yml
 ├── src
 │   ├── functions
+│   │   ├── athena_handlers
+│   │   │   └── athena_handlers.py
 │   │   ├── cascade_handlers
 │   │   │   ├── cascade_delete.py
 │   │   │   └── utils.py
@@ -143,7 +182,8 @@ serverless deploy -c serverless-athena.yml --aws-profile ikonicshop
     │   ├── client_test.py
     │   ├── get_component_data_request.py
     │   ├── get_path_components_request.py
-    │   └── get_workspace_paths_request.py
+    │   ├── get_workspace_paths_request.py
+    │   └── test_athena_query.py
     └── resolvers
 ```
 

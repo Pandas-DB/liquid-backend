@@ -574,7 +574,7 @@ resources:
             AttributeDataType: String
             Mutable: true
             Required: true
-          - Name: custom:user_id
+          - Name: user_id
             AttributeDataType: String
             Mutable: true
             Required: false
